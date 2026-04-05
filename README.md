@@ -1,6 +1,25 @@
-# Resilient Logistics 4.0 Big Data Pipeline
+# Modern-Data-Stack-Logistics-4.0
+### Resilient Data Platform for Logistics 4.0
 
-A modern, real-time data engineering platform for logistics monitoring. This project implements a **Medallion Architecture** (Bronze & Silver) to ingest, process, and visualize supply chain data with a built-in "Chaos Injector" for resilience testing.
+This project implements an industrial-grade, resilient **Modern Data Stack** designed to solve the "Black Box" problem in global supply chains. By shifting from reactive to Predictive Logistics, the platform anticipates delivery delays before they occur and ensures data integrity through **Chaos Engineering**.
+
+---
+
+## 🏗️ Architecture (Medallion & MLOps)
+The platform follows the Medallion Architecture (Bronze, Silver, Gold) to ensure a clean, auditable data flow:
+
+1. **Ingestion & Chaos**: 
+    * **Apache Kafka** handles high-throughput streaming of logistics events.
+    * A custom **Chaos Injector (Python)** simulates data corruption and network latency to test system reliability.
+2. **Storage & Processing**:
+    * **MinIO (S3-Compatible)**: Acts as the Data Lake (Bronze Layer) for raw JSON persistence.
+    * **Apache Spark (MLlib)**: Performs real-time cleaning and runs a Predictive Model to calculate risk for every shipment.
+3. **Transformation & Quality**:
+    * **PostgreSQL**: Stores the structured Silver and Gold layers.
+    * **dbt (Data Build Tool)**: Manages SQL transformations and enforces strict data quality using `dbt-expectations`.
+4. **Orchestration & Observability**:
+    * **Apache Airflow**: Orchestrates the end-to-end DAG (Sensor -> dbt Run -> dbt Test).
+    * **Grafana & Loki**: Centralized logging and real-time monitoring of infrastructure health and "Chaos" events.
 
 ---
 
@@ -13,7 +32,7 @@ docker-compose up -d
 ```
 
 > [!NOTE]
-> Please wait **~2 minutes** after the command completes for all services (especially Airflow and Spark) to fully initialize.
+> Please wait **~2 minutes** after the command completes for all services to fully initialize.
 
 ---
 
@@ -40,30 +59,18 @@ python ingestion_stream.py
 ```
 
 ### 2. Chaos Injection (Resilience Testing)
-Simulates a "hostile" data environment by injecting corrupted records (negative totals, missing IDs, 1000-year time travel) to test the pipeline's robustness.
+Simulates a "hostile" data environment by injecting corrupted records.
 ```bash
 python chaos_injector.py
 ```
 
 ---
 
-## 🏗️ Technical Architecture
-
-- **Ingestion**: Kafka (Zookeeper) for message queuing.
-- **Processing**: PySpark (Master/Worker) for streaming transformations.
-- **Storage**:
-    - **Bronze**: MinIO (S3-compatible) for raw JSON archival.
-    - **Silver**: PostgreSQL for structured, clean logistics data.
-- **Orchestration**: Apache Airflow for DAG management.
-- **Observability**: Grafana & Loki for real-time monitoring and log aggregation.
-
----
-
 ## 📝 Prerequisites
 
-- **Docker & Docker Compose**: To run the infrastructure.
-- **Python 3.10+**: To run the ingestion/chaos scripts.
-- **Dataset**: Ensure `DataCoSupplyChainDataset.csv` is present in the parent directory (or update the path in scripts).
+- **Docker & Docker Compose**
+- **Python 3.10+**
+- **Dataset**: Ensure `DataCoSupplyChainDataset.csv` is present in the parent directory.
 
 ---
 
