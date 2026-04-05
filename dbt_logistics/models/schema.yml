@@ -1,0 +1,27 @@
+version: 2
+
+models:
+  - name: gold_orders
+    description: "Table consolidée finale (Gold Layer) pour la BI"
+    columns:
+      - name: order_id
+        description: "Clé unique de la commande"
+        tests:
+          - unique
+          - not_null
+      - name: delivery_status
+        description: "Statut de livraison"
+        tests:
+          - accepted_values:
+              values: ["Advance shipping", "Late delivery", "Shipping on time", "Shipping canceled"]
+      - name: delivery_delay_risk
+        description: "Retard absolu en jours"
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: -100
+              max_value: 360 # Un retard de plus d'un an est une donnée aberrante injectée par le Chaos Producer
+      - name: is_delayed_prediction
+        description: "Prédiction MLlib (0 ou 1)"
+        tests:
+          - accepted_values:
+              values: [0, 1]

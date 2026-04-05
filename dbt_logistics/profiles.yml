@@ -1,0 +1,12 @@
+dbt_logistics_profile:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: localhost
+      port: 5432
+      user: admin_logistics
+      password: securepassword123
+      dbname: logistics_db
+      schema: public
+      threads: 2

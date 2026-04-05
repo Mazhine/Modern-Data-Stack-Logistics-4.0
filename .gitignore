@@ -1,0 +1,32 @@
+# Python Caches
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# Large Datasets
+*.csv
+*.zip
+*.tar.gz
+
+# Docker Volumes & Logs
+postgres_data/
+minio_data/
+airflow_logs/
+spark_logs/
+checkpoint_bronze/
+checkpoint_silver/
+
+# IDE & OS Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+*.key
+*.pem

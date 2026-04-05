@@ -1,0 +1,13 @@
+name: "dbt_logistics"
+version: "1.0.0"
+config-version: 2
+profile: "dbt_logistics_profile"
+
+model-paths: ["models"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  dbt_logistics:
+    gold:
+      +materialized: table
