@@ -14,7 +14,7 @@ An enterprise-grade, real-time Machine Learning and Big Data streaming pipeline 
 ### 1. Ingestion & Streaming
 * **Apache Kafka & Zookeeper:** High-throughput streaming message broker cluster.
 * **Kafka-UI:** Live operational dashboard for Kafka topic monitoring.
-* **Python (Pandas):** Emulates live transactional e-commerce activity natively pushing to Kafka.
+* **Python (Pandas & Numpy):** Emulates live transactional e-commerce activity natively pushing to Kafka.
 
 ### 2. Processing & Storage (Medallion Architecture)
 * **Apache PySpark (MLlib):** Real-time backend data processor. Computes predictive validations on micro-batches.
@@ -67,6 +67,9 @@ python stream_manager.py --mode sain
 # Stochastic Corruption (Injecting nulls, time travels, and extreme bounds)
 python stream_manager.py --mode chaos
 
+# Mixed Stream (50/50 randomized split testing Anomaly resilience)
+python stream_manager.py --mode mix
+
 # Pure Machine Learning Focus 
 python stream_manager.py --mode ia
 ```
@@ -86,7 +89,7 @@ docker-compose down
 | **Apache Airflow** | [localhost:8080](http://localhost:8080) | `admin` | `admin` | Dag Orchestration |
 | **Adminer (PostgreSQL)** | [localhost:8081](http://localhost:8081) | `admin_logistics` | `securepassword123` | DWH Viewer |
 | **Kafka UI** | [localhost:8083](http://localhost:8083) | *None* | *None* | Streaming Dashboards |
-| **MinIO Console** | [localhost:9001](http://localhost:9001) | `admin` | `password` | Raw S3 Data Lake |
+| **MinIO Console** | [localhost:9001](http://localhost:9001) | `admin` | `password` (ou `pfa2026`) | Raw S3 Data Lake |
 | **Grafana** | [localhost:3000](http://localhost:3000) | `admin` | `admin` | Loki Log Aggregation |
 | **MLflow Server** | [localhost:5000](http://localhost:5000) | *None* | *None* | Trained Model Metrics |
 
