@@ -4,7 +4,7 @@ Handles the ingestion of raw Kafka unstructured events into the Gold Datamart.
 Integrates MLflow predictive ML logic synchronously on the streaming micro-batches.
 """
 
-from pyspark.sql import SparkSession
+from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import col, from_json, lit
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, TimestampType
 from pyspark.ml import PipelineModel
@@ -51,7 +51,7 @@ def define_bronze_schema() -> StructType:
         StructField("Type", StringType(), True)
     ])
 
-def load_to_silver_layer(batch_df: "pyspark.sql.DataFrame", batch_id: int):
+def load_to_silver_layer(batch_df: DataFrame, batch_id: int):
     """
     Spark Micro-Batch sink mapping inferred dataset into Postgres DWH tables.
     """

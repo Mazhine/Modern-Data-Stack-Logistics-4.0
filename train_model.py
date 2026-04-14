@@ -9,7 +9,7 @@ import shutil
 
 import mlflow
 import mlflow.spark
-from pyspark.sql import SparkSession
+from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import col
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.feature import VectorAssembler, StringIndexer
@@ -42,7 +42,7 @@ class SparkModelTrainer:
             .getOrCreate()
         self.spark.sparkContext.setLogLevel("WARN")
 
-    def _load_data(self) -> "pyspark.sql.DataFrame":
+    def _load_data(self) -> DataFrame:
         """Load and curate the training features."""
         print("[INFO] Loading historical dataset from /tmp/DataCoSupplyChainDataset.csv...")
         df = self.spark.read.csv(
