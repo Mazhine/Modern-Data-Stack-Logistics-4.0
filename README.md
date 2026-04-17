@@ -14,7 +14,7 @@ An enterprise-grade, real-time Machine Learning and Big Data streaming pipeline 
 ### 1. Ingestion & Streaming
 * **Apache Kafka & Zookeeper:** High-throughput streaming message broker cluster.
 * **Kafka-UI:** Live operational dashboard for Kafka topic monitoring.
-* **Python (Pandas & Numpy):** Emulates live transactional e-commerce activity natively pushing to Kafka.
+* **Python (Pandas & Numpy):** Ingests the historical `DataCoSupplyChainDataset.csv`, applies a time-travel offset to emulate live ongoing transactions, and natively pushes them to Kafka.
 
 ### 2. Processing & Storage (Medallion Architecture)
 * **Apache PySpark (MLlib):** Real-time backend data processor. Computes predictive validations on micro-batches.
@@ -29,6 +29,9 @@ An enterprise-grade, real-time Machine Learning and Big Data streaming pipeline 
 ### 4. Observability & CI/CD
 * **Grafana & Loki:** Production observability stack indexing internal pipeline logs.
 * **GitHub Actions:** CI/CD tunnel enforcing `Flake8` PEP-8 standards and validating Docker deployments on commits.
+
+### 5. Control Tower Architecture (New)
+* **Nginx Gateway & FastAPI:** A central UI (`app.py`) unifying the Medallion flow. Bypasses `X-Frame-Options` and leverages the Docker SDK to give live analytics and stream control.
 
 ---
 
@@ -49,7 +52,7 @@ The historical dataset (`DataCoSupplyChainDataset.csv`) must be placed in the pa
 ```powershell
 docker-compose up -d --build
 ```
-*Spins up all 14 background services (Brokers, Data Lakes, MLflow, Warehouses).*
+*Spins up all 16 background services (Brokers, Data Lakes, MLflow, Warehouses, Control Tower UI).*
 
 ### Training the Machine Learning Classifier (MLOps)
 Before launching predictions, train the Random Forest AI on the local dataset:
@@ -82,10 +85,20 @@ docker-compose down
 
 ---
 
+## 🔌 API Definitions (Control Tower)
+
+The central FastAPI app (`app.py`) orchestrates the pipeline through the following endpoints:
+* **`GET /`** : Serves the main Control Tower HTML/Medallion UI.
+* **`GET /status`** : Polls the Docker SDK (`/var/run/docker.sock`) to report the live execution status of all 16 containers.
+* **`POST /stream/{action}?mode=X&delay=Y`** : Utilizes Python `psutil` and `subprocess` to launch/kill `stream_manager.py` cleanly, streaming the underlying dataset according to the queried mode (`sain`, `chaos`, `mix`, `ia`).
+
+---
+
 ## 🌐 Web Interfaces & Credentials
 
 | Service | Port / URL | Username | Password | Purpose |
 |---------|------------|----------|----------|---------|
+| **Control Tower UI** | [localhost:8000](http://localhost:8000) | `admin` | `pfa2026` | Architecture Visualizer |
 | **Apache Airflow** | [localhost:8080](http://localhost:8080) | `admin` | `admin` | Dag Orchestration |
 | **Adminer (PostgreSQL)** | [localhost:8081](http://localhost:8081) | `admin_logistics` | `securepassword123` | DWH Viewer |
 | **Kafka UI** | [localhost:8083](http://localhost:8083) | *None* | *None* | Streaming Dashboards |
