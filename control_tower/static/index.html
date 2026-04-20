@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logistics 4.0 | PRO Control Tower</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="static/style.css?v=15">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="dark-theme">
+    <div id="login-screen">
+        <div class="login-card">
+            <h1>CONTROL TOWER</h1>
+            <p style="margin-bottom: 3rem;">Logistics 4.0 Infrastructure</p>
+            <div class="input-group">
+                <input type="text" id="username" placeholder="Utilisateur">
+            </div>
+            <div class="input-group">
+                <input type="password" id="password" placeholder="Mot de passe">
+            </div>
+            <button id="login-btn">Entrer dans le terminal</button>
+            <p id="login-error" class="error-msg" style="margin-top: 2rem; color: #ef4444; font-size: 1rem;"></p>
+        </div>
+    </div>
+
+    <div id="main-app" class="hidden">
+        <header class="top-bar">
+            <div class="logo">
+                <span class="pulse-icon"></span>
+                <strong>LOGISTICS 4.0 - PRO</strong> <span class="light">CONTROL TOWER</span>
+            </div>
+            <div class="stream-controls">
+                <div class="mode-selector">
+                    <select id="stream-mode">
+                        <option value="sain">Sain (Nominal)</option>
+                        <option value="chaos">Chaos (Anomalies)</option>
+                        <option value="mix">Mixte (Réalisme)</option>
+                        <option value="ia">IA Self-Learning</option>
+                        <option value="aio">⚡ AIO Premium</option>
+                    </select>
+                </div>
+                <div class="delay-selector" style="margin-right: 15px;">
+                    <select id="stream-delay">
+                        <option value="0">En Direct (Live)</option>
+                        <option value="1">1s Délai</option>
+                        <option value="5">5s Délai</option>
+                        <option value="10">10s Délai</option>
+                        <option value="30">30s Délai</option>
+                        <option value="60">1m Délai</option>
+                    </select>
+                </div>
+
+                <button id="btn-stream-start" class="btn-primary"><i data-lucide="play"></i> LANCER</button>
+                <button id="btn-stream-stop" class="btn-danger hidden"><i data-lucide="square"></i> ARRÊTER</button>
+            </div>
+            <div class="user-id">
+                <i data-lucide="shield-check"></i> <span id="display-user">Admin</span>
+            </div>
+        </header>
+
+        <div class="layout">
+            <nav class="sidebar">
+                <button class="nav-item active" data-target="dashboard">
+                    <i data-lucide="layout-dashboard"></i> <span>DASHBOARD</span>
+                </button>
+                <button class="nav-item" data-target="kafka" data-url="http://localhost:18083/">
+                    <i data-lucide="layers"></i> <span>KAFKA STREAM</span>
+                </button>
+                <button class="nav-item" data-target="spark" data-url="http://localhost:18082/">
+                    <i data-lucide="cpu"></i> <span>SPARK ENGINE</span>
+                </button>
+                <button class="nav-item" data-target="airflow" data-url="http://localhost:18080/">
+                    <i data-lucide="workflow"></i> <span>AIRFLOW DAGS</span>
+                </button>
+                <button class="nav-item" data-target="minio" data-url="http://localhost:19001/">
+                    <i data-lucide="database"></i> <span>S3 DATA LAKE</span>
+                </button>
+                <button class="nav-item" data-target="postgres">
+                    <i data-lucide="table"></i> <span>POSTGRES WAREHOUSE</span>
+                </button>
+                <button class="nav-item" data-target="mlflow" data-url="http://localhost:15000/">
+                    <i data-lucide="brain-circuit"></i> <span>M.L. TRACKING</span>
+                </button>
+                <button class="nav-item" data-target="grafana" data-url="http://localhost:13000/">
+                    <i data-lucide="activity"></i> <span>OBSERVABILITY</span>
+                </button>
+                <div class="nav-spacer"></div>
+                <button class="nav-item" id="logout-btn">
+                    <i data-lucide="log-out"></i> <span>LOGOUT</span>
+                </button>
+            </nav>
+
+            <main class="content-area">
+                <!-- Dashboard View -->
+                <div id="view-dashboard" class="sub-view">
+                    <div class="dashboard-container">
+                        <div class="card architecture-card">
+                            <h3 style="text-align: center; margin-bottom: 2rem;">Logistics Flowchart (Medallion)</h3>
+                            
+                            <div class="flowchart-container">
+                                <!-- Zone 1: Collecte -->
+                                <div class="flow-zone">
+                                    <div class="zone-title">1. Collecte des données</div>
+                                    <div class="flow-row">
+                                        <div class="node" id="node-source" title="Simulateur Commandes">
+                                            <div class="icon-circle"><i data-lucide="database" style="color: #60a5fa"></i></div>
+                                            <span>Simulateur</span>
+                                        </div>
+                                        <div class="animated-arrow right" id="arrow-sim-kafka"><span></span></div>
+                                        <div class="node" id="node-kafka" title="Transport des données">
+                                            <div class="icon-circle"><i data-lucide="layers"></i></div>
+                                            <span>Kafka</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Zone 2: Traitement -->
+                                <div class="flow-zone line-down">
+                                    <div class="animated-arrow down" id="arrow-kafka-spark"><span></span></div>
+                                    <div class="zone-title">2. Traitement Intelligent</div>
+                                    <div class="flow-row">
+                                        <div class="node" id="node-spark" title="Nettoyage + Prédictions">
+                                            <div class="icon-circle"><i data-lucide="cpu" style="color: #fbbf24"></i></div>
+                                            <span>Spark Streaming</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Zone 3: Medallion -->
+                                <div class="flow-zone line-down-split">
+                                    <div class="arrow-split">
+                                        <div class="animated-arrow down-left" id="arrow-spark-bronze"><span></span></div>
+                                        <div class="animated-arrow down-center" id="arrow-spark-silver"><span></span></div>
+                                        <div class="animated-arrow down-right" id="arrow-spark-airflow"><span></span></div>
+                                    </div>
+                                    <div class="zone-title medallion-box-border">3. Organisation des données (Medallion)</div>
+                                    <div class="flow-row split">
+                                        <div class="node" id="node-minio" title="Données Brutes (S3)">
+                                            <div class="icon-circle bronze"><i data-lucide="package" style="color: #cd7f32"></i></div>
+                                            <span>Bronze</span>
+                                        </div>
+                                        
+                                        <div class="node" id="node-spark-process" title="Données Nettoyées">
+                                            <div class="icon-circle silver"><i data-lucide="award" style="color: #c0c0c0"></i></div>
+                                            <span>Silver</span>
+                                        </div>
+                                        
+                                        <div class="flow-column">
+                                            <div class="node" id="node-airflow" title="Variables Automatisation">
+                                                <div class="icon-circle"><i data-lucide="workflow" style="color: #60a5fa"></i></div>
+                                                <span>Airflow / dbt</span>
+                                            </div>
+                                            <div class="animated-arrow down small" id="arrow-airflow-gold"><span></span></div>
+                                            <div class="node" id="node-postgres" title="Données Prêtes">
+                                                <div class="icon-circle gold"><i data-lucide="table" style="color: #ffd700"></i></div>
+                                                <span>Gold</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Zone 4: Suivi -->
+                                <div class="flow-zone trailing-zone">
+                                    <div class="zone-title">Outils de Suivi & Gouvernance</div>
+                                    <div class="flow-row spaced">
+                                        <div class="node" id="node-mlflow" title="Suivi des Modèles">
+                                            <div class="icon-circle"><i data-lucide="share-2" style="color: #9333ea"></i></div>
+                                            <span>MLflow</span>
+                                        </div>
+                                        <div class="node" id="node-grafana" title="Tableaux de Bord">
+                                            <div class="icon-circle"><i data-lucide="activity" style="color: #10b981"></i></div>
+                                            <span>Grafana</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stats-grid">
+                            <div class="card status-card">
+                                <h3>Health Monitoring (15 Containers)</h3>
+                                <div id="container-list" class="mini-list">
+                                    <!-- Dynamic Real-time items -->
+                                </div>
+                            </div>
+                            <div class="card info-card">
+                                <h3>System Performance</h3>
+                                <div class="metric">
+                                    <span class="label">Processing Latency</span>
+                                    <span class="value">0.8s</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="label">Loki Endpoint</span>
+                                    <span class="value" style="color: #64748b; font-size: 0.8rem;">http://loki:3100</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="label">Inference Status</span>
+                                    <span id="stat-mode" class="value" style="color: var(--accent-blue)">NOMINAL</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card terminal-card" style="margin-top: -10px;">
+                            <h3><i data-lucide="terminal" style="width: 14px; display:inline-block; margin-right: 5px;"></i> SYSTEM LOGS - LIVE</h3>
+                            <div class="terminal-window" id="terminal-window">
+                                <div class="term-line"><span class="term-time">[SYS]</span> <span class="term-msg">Logistics 4.0 Control Tower initialized. Waiting for stream input...</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Postgres Native View -->
+                <div id="view-postgres" class="sub-view hidden">
+                    <div class="db-viewer">
+                        <div class="db-sidebar">
+                            <h4>Tables</h4>
+                            <div id="db-table-list"></div>
+                        </div>
+                        <div class="db-content">
+                            <div id="db-table-header" style="margin-bottom:1rem;color:var(--text-secondary);font-size:0.85rem;">Sélectionnez une table</div>
+                            <div id="db-table-data" style="overflow-x:auto;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Full Width Iframe View -->
+                <div id="view-iframe" class="sub-view hidden full-width">
+                    <div class="iframe-container">
+                        <div class="iframe-fallback">
+                            <a id="external-link" href="#" target="_blank" class="btn-primary"><i data-lucide="external-link"></i> Ouvrir dans un nouvel onglet</a>
+                        </div>
+                        <iframe id="main-frame" src="" frameborder="0"></iframe>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Adminer Auto-Login Form -->
+    <form id="adminer-login-form" target="main-frame" method="post" action="/adminer/" style="display:none;">
+        <input type="hidden" name="auth[driver]" value="pgsql">
+        <input type="hidden" name="auth[server]" value="postgres">
+        <input type="hidden" name="auth[username]" value="admin_logistics">
+        <input type="hidden" name="auth[password]" value="securepassword123">
+        <input type="hidden" name="auth[db]" value="logistics_db">
+    </form>
+
+    <script src="static/script.js?v=15"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

@@ -4,8 +4,9 @@
 ![Streaming](https://img.shields.io/badge/Streaming-Kafka%20%7C%20PySpark-orange)
 ![MLOps](https://img.shields.io/badge/MLOps-MLflow-green)
 ![CI/CD](https://img.shields.io/badge/Status-CI%2FCD%20Ready-brightgreen)
+![Control Tower](https://img.shields.io/badge/Control_Tower-FastAPI%20%7C%20Nginx-cyan)
 
-An enterprise-grade, real-time Machine Learning and Big Data streaming pipeline built for modern **Logistics 4.0** analytics. This pipeline ingests e-commerce delivery streams, natively predicts shipping delays through a stochastic Machine Learning engine, and builds a robust, three-tiered data warehouse using the Medallion Architecture.
+An enterprise-grade, real-time Machine Learning and Big Data streaming pipeline built for modern **Logistics 4.0** analytics. This pipeline ingests e-commerce delivery streams, predicts shipping delays through a self-tuning Machine Learning engine, and builds a robust, three-tiered data warehouse using the Medallion Architecture — all monitored through a unified industrial Control Tower.
 
 ---
 
@@ -14,110 +15,200 @@ An enterprise-grade, real-time Machine Learning and Big Data streaming pipeline 
 ### 1. Ingestion & Streaming
 * **Apache Kafka & Zookeeper:** High-throughput streaming message broker cluster.
 * **Kafka-UI:** Live operational dashboard for Kafka topic monitoring.
-* **Python (Pandas & Numpy):** Ingests the historical `DataCoSupplyChainDataset.csv`, applies a time-travel offset to emulate live ongoing transactions, and natively pushes them to Kafka.
+* **Python (Pandas):** Ingests the historical `DataCoSupplyChainDataset.csv`, applies a time-travel offset to emulate live ongoing transactions, and pushes them to Kafka via 5 configurable streaming modes.
 
 ### 2. Processing & Storage (Medallion Architecture)
-* **Apache PySpark (MLlib):** Real-time backend data processor. Computes predictive validations on micro-batches.
+* **Apache PySpark (MLlib):** Real-time backend data processor. Computes predictive validations on micro-batches using the trained Random Forest model.
 * **MinIO (S3-Compatible):** On-premise Object Storage handling the **Bronze Layer** (Raw payload dump).
-* **PostgreSQL:** Handles the highly structured internal SQL data warehouse for **Silver and Gold** layers.
+* **PostgreSQL:** Handles the highly structured internal SQL data warehouse for **Silver and Gold** layers (fact_orders, dim_customer, dim_geography, dim_product).
 
 ### 3. Orchestration & Machine Learning
 * **Apache Airflow:** Automates workflow triggering (S3KeySensors tracking incoming Bronze packets).
 * **dbt (Data Build Tool):** Executes SQL semantic transformations building analytical Gold Layers.
-* **MLflow:** MLOps tracking server standardizing RandomForest metrics (Accuracy, F1-Score) and artifacts.
+* **MLflow:** MLOps tracking server logging hyperparameter search results, full metrics suite (Accuracy, F1, Precision, Recall, AUC-ROC) and serialized model artifacts.
 
 ### 4. Observability & CI/CD
-* **Grafana & Loki:** Production observability stack indexing internal pipeline logs.
+* **Grafana & Loki:** Production observability stack indexing real-time pipeline logs across all streaming modes.
 * **GitHub Actions:** CI/CD tunnel enforcing `Flake8` PEP-8 standards and validating Docker deployments on commits.
 
-### 5. Control Tower Architecture (New)
-* **Nginx Gateway & FastAPI:** A central UI (`app.py`) unifying the Medallion flow. Bypasses `X-Frame-Options` and leverages the Docker SDK to give live analytics and stream control.
+### 5. Control Tower (Industrial Dashboard)
+* **Nginx Gateway & FastAPI:** Central UI unifying the full Medallion flow. Proxies all internal services (Airflow, Spark, MinIO, Grafana, MLflow) through a single authenticated gateway.
+* **PostgreSQL Native Viewer:** Built-in database explorer powered by `psycopg2` — queries the DWH tables directly without any cross-origin redirects.
+* **Docker SDK Integration:** Live container health monitoring across all 16 services.
+
+---
+
+## 🤖 MLOps Pipeline — Model Training
+
+The `train_model.py` script trains a **Random Forest Classifier** to predict `Late_delivery_risk` on 15 curated features from the supply chain schema.
+
+### Features Used (15/25 schema columns)
+| Type | Features |
+|------|---------|
+| **Numeric (6)** | Days for shipment (scheduled), Benefit per order, Sales per customer, Order Item Total, Order Item Discount, Product Price |
+| **Categorical (9)** | Shipping Mode, Order Status, Customer Country, Order Country, Order Region, Category Name, Customer Segment, Department Name, Type |
+
+> **Excluded:** IDs (3), raw dates (2), target leakage columns (Days for shipping real, Delivery Status), label (Late_delivery_risk), high-cardinality cities (Customer City, Order City — >3000 unique values).
+
+### Hyperparameter Tuning (Anti-Overfitting)
+Uses **`TrainValidationSplit`** with a `ParamGridBuilder` (4 combinations):
+- `numTrees`: [50, 100]
+- `maxDepth`: [6, 8]
+- `minInstancesPerNode`: 5 (fixed — prevents leaf overfitting)
+- `maxBins`: 256
+
+Automatically detects over/underfitting by comparing validation vs test AUC-ROC (logs a warning if gap > 5%).
+
+### Smart Mix Data Augmentation
+~10% of the training set is augmented with **Scheduling Paradox** perturbations (Standard Class + 7-day window → Late=1) to make the model robust against the anomalies generated by the Mix and AIO streaming modes.
+
+### Latest Run Results
+| Metric | Score |
+|--------|-------|
+| **AUC-ROC** | **0.7701** |
+| Accuracy | 0.7117 |
+| F1-Score | 0.7069 |
+| Precision | 0.7530 |
+| Recall | 0.7117 |
+| Val-Test Gap | **0.0395** ✅ (< 5% → no overfitting) |
+
+---
+
+## 📡 Streaming Modes
+
+The `stream_manager.py` supports 5 modes, selectable from the Control Tower UI or CLI:
+
+| Mode | CLI Flag | Description |
+|------|----------|-------------|
+| **Sain** | `--mode sain` | Clean nominal data — real dataset events, no corruption |
+| **Chaos** | `--mode chaos` | 100% SmartMix anomalies — all events corrupted |
+| **Mixte** | `--mode mix` | 50% SmartMix + 50% nominal — production-realistic testing |
+| **IA Self-Learning** | `--mode ia` | AI feedback loop: 3 adaptive regimes based on prediction error rate |
+| **⚡ AIO Premium** | `--mode aio` | All-In-One: 35% nominal / 30% AI boundary / 20% Smart Mix / 15% chaos |
+
+### SmartMixCorruptor — Causally Coherent Anomalies
+Unlike random corruption, each anomaly follows supply chain business logic:
+
+| Anomaly Type | Weight | Business Logic |
+|---|---|---|
+| `SCHEDULING_PARADOX` | 20% | Standard Class + 6-9d window → Late=1 guaranteed |
+| `REVENUE_INTEGRITY` | 18% | Negative total + excessive discount → fraud pattern |
+| `GEO_ROUTING_FAILURE` | 15% | Origin country ≠ delivery region → routing failure |
+| `DEMAND_SURGE` | 15% | Order volume ×8-15 → logistics capacity overwhelmed |
+| `PRODUCT_SUBSTITUTION` | 12% | Out-of-stock → mode override → added delay |
+| `NULL_FIELD` | 10% | Critical field nullification → tests pipeline validation |
+| `EDGE_CASE` | 10% | Intentional decision boundary case — max learning value |
+
+### AIO Mode — Uncertainty Sampling Architecture
+```
+For each event:
+  1. Compute heuristic risk score (0.0 → 1.0)
+  
+  If score ∈ [0.20, 0.40]  → UNCERTAINTY SAMPLING (automatic redirect)
+     └→ Becomes a Boundary Case (max pedagogical value for the model)
+  
+  Otherwise → weighted distribution:
+     roll < 0.35  → Nominal    (35% — real data baseline)
+     roll < 0.65  → AI Boundary (30% — frontier exploration)
+     roll < 0.85  → Smart Mix  (20% — coherent anomalies)
+     remainder    → Chaos      (15% — extreme edge cases)
+```
+
+### IA Mode — 3 Adaptive Regimes
+| Error Rate | Regime | Behavior |
+|---|---|---|
+| < 20% | `CHALLENGING` | Model too confident → injects edge cases |
+| 20–40% | `BOUNDARY` | At learning frontier → SmartMix anomalies |
+| > 40% | `RESET` | Model confused → clean nominal data to re-baseline |
 
 ---
 
 ## ⚙️ Prerequisites & Installation
 
-To run this pipeline locally, ensure the following dependencies are installed on your machine:
-* **Docker Engine** & **Docker Desktop** (or Compose V2).
-* **Git** for version control.
-* **Python 3.10+**.
-
-The historical dataset (`DataCoSupplyChainDataset.csv`) must be placed in the parent directory of this project (`../DataCoSupplyChainDataset.csv`) to enable raw model training.
+* **Docker Engine** & **Docker Desktop** (or Compose V2)
+* **Python 3.10+** with pip packages: `kafka-python`, `pandas`, `logging-loki`
+* The historical dataset (`DataCoSupplyChainDataset.csv`) placed at `../DataCoSupplyChainDataset.csv`
 
 ---
 
 ## 🚀 Execution & Command Reference
 
-### Starting the Infrastructure
+### Start the Infrastructure
 ```powershell
 docker-compose up -d --build
 ```
-*Spins up all 16 background services (Brokers, Data Lakes, MLflow, Warehouses, Control Tower UI).*
+*Spins up all 16 background services. Access the Control Tower at `http://localhost:8000`.*
 
-### Training the Machine Learning Classifier (MLOps)
-Before launching predictions, train the Random Forest AI on the local dataset:
+### Train the ML Model (First Time Setup)
 ```powershell
-docker exec -it 03_spark_master spark-submit --master spark://spark-master:7077 /opt/bitnami/spark/jobs/train_model.py
+# Copy training script into the Spark container
+docker cp train_model.py 03_spark_master:/tmp/train_model.py
+
+# Launch training with hyperparameter tuning (~10-15 min)
+docker exec -it 03_spark_master spark-submit --master spark://spark-master:7077 /tmp/train_model.py
 ```
-*Once successful, the algorithmic weights are saved for real-time PySpark streaming inference.*
+*Trains a Random Forest with TrainValidationSplit across 4 hyperparameter combinations. Results logged to MLflow.*
 
-### Initiating the Live Kafka Stream
-Simulate ongoing business transactions dynamically:
+### Launch a Kafka Stream
 ```powershell
-# Nominal Stream (Healthy data evaluation)
-python stream_manager.py --mode sain
-
-# Stochastic Corruption (Injecting nulls, time travels, and extreme bounds)
-python stream_manager.py --mode chaos
-
-# Mixed Stream (50/50 randomized split testing Anomaly resilience)
-python stream_manager.py --mode mix
-
-# Pure Machine Learning Focus 
-python stream_manager.py --mode ia
+python stream_manager.py --mode sain    # Clean nominal data
+python stream_manager.py --mode chaos   # 100% causally coherent anomalies
+python stream_manager.py --mode mix     # 50% anomaly / 50% nominal
+python stream_manager.py --mode ia      # AI self-learning with 3 adaptive regimes
+python stream_manager.py --mode aio     # AIO Premium: optimized for model improvement
 ```
 
-### Terminating the Cluster
-To kill all services securely without frying processing power:
+### Stop the Cluster
 ```powershell
 docker-compose down
 ```
 
 ---
 
-## 🔌 API Definitions (Control Tower)
+## 🔌 API Reference (Control Tower FastAPI)
 
-The central FastAPI app (`app.py`) orchestrates the pipeline through the following endpoints:
-* **`GET /`** : Serves the main Control Tower HTML/Medallion UI.
-* **`GET /status`** : Polls the Docker SDK (`/var/run/docker.sock`) to report the live execution status of all 16 containers.
-* **`POST /stream/{action}?mode=X&delay=Y`** : Utilizes Python `psutil` and `subprocess` to launch/kill `stream_manager.py` cleanly, streaming the underlying dataset according to the queried mode (`sain`, `chaos`, `mix`, `ia`).
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `GET /` | GET | Serves the Control Tower HTML dashboard |
+| `GET /api/status` | GET | Live status of all 16 Docker containers via Docker SDK |
+| `POST /api/stream/start?mode=X&delay=Y` | POST | Launches `stream_manager.py` in the selected mode |
+| `POST /api/stream/stop` | POST | Gracefully terminates the active stream |
+| `GET /db/tables` | GET | Lists all PostgreSQL tables with row counts and sizes |
+| `GET /db/table/{name}?limit=N` | GET | Returns the last N rows from a given DWH table |
 
 ---
 
 ## 🌐 Web Interfaces & Credentials
 
-| Service | Port / URL | Username | Password | Purpose |
-|---------|------------|----------|----------|---------|
-| **Control Tower UI** | [localhost:8000](http://localhost:8000) | `admin` | `pfa2026` | Architecture Visualizer |
-| **Apache Airflow** | [localhost:8080](http://localhost:8080) | `admin` | `admin` | Dag Orchestration |
-| **Adminer (PostgreSQL)** | [localhost:8081](http://localhost:8081) | `admin_logistics` | `securepassword123` | DWH Viewer |
-| **Kafka UI** | [localhost:8083](http://localhost:8083) | *None* | *None* | Streaming Dashboards |
-| **MinIO Console** | [localhost:9001](http://localhost:9001) | `admin` | `password` (ou `pfa2026`) | Raw S3 Data Lake |
-| **Grafana** | [localhost:3000](http://localhost:3000) | `admin` | `admin` | Loki Log Aggregation |
-| **MLflow Server** | [localhost:5000](http://localhost:5000) | *None* | *None* | Trained Model Metrics |
+| Service | URL | Username | Password | Purpose |
+|---------|-----|----------|----------|---------|
+| **Control Tower** | [localhost:8000](http://localhost:8000) | `admin` | `pfa2026` | Unified architecture dashboard |
+| **Apache Airflow** | via Control Tower | `admin` | `admin` | DAG orchestration |
+| **Kafka UI** | via Control Tower | — | — | Real-time stream monitoring |
+| **MinIO Console** | via Control Tower | `admin` | `pfa2026` | Raw S3 Bronze data lake |
+| **Grafana** | via Control Tower | `admin` | `admin` | Loki log aggregation |
+| **MLflow Server** | via Control Tower | — | — | ML experiment tracking |
+| **Spark Master UI** | via Control Tower | — | — | Spark job monitoring |
+| **PostgreSQL Viewer** | Control Tower → Postgres Warehouse | built-in | — | Native DWH explorer |
 
-*(Database System defaults to `postgres` and DB matches `logistics_db`)*
+*All services are proxied through the Nginx gateway — no direct port access required.*
 
 ---
 
-## 📁 Repository Structure Overview
+## 📁 Repository Structure
 
-* **`docker-compose.yml`**: The foundational orchestrator instantiating the entire cloud architecture footprint constraint to local limits.
-* **`stream_manager.py`**: Python generative script. Simulates upstream legacy applications flushing user orders iteratively.
-* **`spark_processor.py`**: Complex PySpark Consumer. Translates JSON Kafka payloads, infers Late Delivery probability via MLlib, and executes dual outputs to MinIO (Bronze) and Postgres (Silver).
-* **`train_model.py`**: Batch processing algorithm. Teaches the internal classifier what constitutes a logistical delay using Big Data regressions.
-* **`.github/workflows/data_pipeline_ci.yml`**: Automated auditor robot analyzing every code push to maintain Senior-level engineering standards.
-* **`dags/`**: Contains Python directed acyclic graphs executed autonomously by Airflow.
-* **`dbt_logistics/`**: Semantic structure holding schema `.yml` rules and SQL transformations scaling Silver streams to dimensional Gold datamarts.
-* **`postgres-init/`**: Bootstrapping `.sql` scripts executed organically on the first volume instantiation of the Warehouse.
-* **`spark_models/`**: State-storage folder for the trained ML binary (prevents model retraining on every reboot).
+| File / Directory | Role |
+|---|---|
+| `docker-compose.yml` | Orchestrates all 16 containerized services with memory limits |
+| `stream_manager.py` | Multi-mode Kafka data generator (sain / chaos / mix / ia / aio) |
+| `spark_processor.py` | PySpark streaming consumer — Bronze→Silver Medallion with ML inference |
+| `train_model.py` | Random Forest trainer with TrainValidationSplit hypertuning + Smart Mix augmentation |
+| `Dockerfile.spark` | Custom Spark image with Unix user fix for Hadoop filesystem access |
+| `control_tower/` | FastAPI app + Nginx gateway + HTML/CSS/JS dashboard |
+| `control_tower/app.py` | FastAPI backend (stream control, Docker SDK, PostgreSQL native viewer) |
+| `control_tower/nginx.conf` | Nginx reverse proxy configuration for all internal services |
+| `dags/` | Apache Airflow DAG definitions |
+| `dbt_logistics/` | dbt SQL transformations (Silver → Gold dimensional model) |
+| `postgres-init/` | Bootstrap SQL schema (fact_orders, dim_customer, dim_geography, dim_product) |
+| `spark_models/` | Serialized PipelineModel binary (persists between restarts) |
+| `.github/workflows/` | GitHub Actions CI/CD (Flake8 linting + Docker validation) |

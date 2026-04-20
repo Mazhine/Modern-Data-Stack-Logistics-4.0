@@ -28,7 +28,9 @@ services:
     - logistics_net
     restart: 'no'
   spark-master:
-    image: bitnamilegacy/spark:3.5
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
     container_name: 03_spark_master
     mem_limit: 512m
     environment:
@@ -50,7 +52,9 @@ services:
     - logistics_net
     restart: 'no'
   spark-worker:
-    image: bitnamilegacy/spark:3.5
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
     container_name: 04_spark_worker
     mem_limit: 1g
     depends_on:
@@ -183,20 +187,21 @@ services:
   mlflow:
     image: python:3.10-slim
     container_name: 13_mlflow
-    mem_limit: 256m
+    mem_limit: 2560m
     ports:
     - 5000:5000
     volumes:
     - ./mlruns:/mlruns
-    command: /bin/sh -c "pip install mlflow && mlflow server --host 0.0.0.0 --backend-store-uri
-      sqlite:///mlruns/mlflow.db --default-artifact-root /mlruns"
+    command: /bin/sh -c "pip install mlflow && mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:///mlruns/mlflow.db --default-artifact-root /mlruns --allowed-hosts '*'"
     networks:
     - logistics_net
     restart: 'no'
   spark-submit-job:
-    image: bitnamilegacy/spark:3.5
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
     container_name: 14_spark_submit
-    mem_limit: 256m
+    mem_limit: 1024m
     depends_on:
     - spark-master
     - kafka
@@ -215,6 +220,38 @@ services:
     networks:
     - logistics_net
     restart: 'no'
+
+  control-tower:
+    build: ./control_tower
+    container_name: 15_control_tower
+    mem_limit: 512m
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+    - logistics_net
+    restart: 'no'
+
+  gateway:
+    image: nginx:alpine
+    container_name: 00_gateway
+    mem_limit: 128m
+    ports:
+    - "8000:80"
+    - "18080:18080"
+    - "18083:18083"
+    - "18082:18082"
+    - "13000:13000"
+    - "15000:15000"
+    - "19001:19001"
+    - "18081:18081"
+    volumes:
+    - ./control_tower/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+    - control-tower
+    networks:
+    - logistics_net
+    restart: 'no'
+
 networks:
   logistics_net:
     driver: bridge
