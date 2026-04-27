@@ -1,12 +1,64 @@
 # Logistics 4.0 Big Data Medallion Architecture
 
-![Architecture](https://img.shields.io/badge/Architecture-Medallion-blue)
-![Streaming](https://img.shields.io/badge/Streaming-Kafka%20%7C%20PySpark-orange)
-![MLOps](https://img.shields.io/badge/MLOps-MLflow-green)
-![CI/CD](https://img.shields.io/badge/Status-CI%2FCD%20Ready-brightgreen)
-![Control Tower](https://img.shields.io/badge/Control_Tower-FastAPI%20%7C%20Nginx-cyan)
+# Logistics 4.0 Big Data Medallion Architecture
+
+![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white)
+![Apache Kafka](https://img.shields.io/badge/Apache_Kafka-Streaming-black?logo=apachekafka&logoColor=white)
+![Apache Spark](https://img.shields.io/badge/Apache_Spark-MicroBatch-E25A1C?logo=apachespark&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Data_Warehouse-336791?logo=postgresql&logoColor=white)
+![dbt](https://img.shields.io/badge/dbt-Transformations-FF694B?logo=dbt&logoColor=white)
+![MLflow](https://img.shields.io/badge/MLflow-MLOps-0194E2?logo=mlflow&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-Control_Tower-009688?logo=fastapi&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
 An enterprise-grade, real-time Machine Learning and Big Data streaming pipeline built for modern **Logistics 4.0** analytics. This pipeline ingests e-commerce delivery streams, predicts shipping delays through a self-tuning Machine Learning engine, and builds a robust, three-tiered data warehouse using the Medallion Architecture — all monitored through a unified industrial Control Tower.
+
+## 💼 Business Impact
+
+In a real-world supply chain context, this platform delivers immediate ROI by shifting logistics management from *reactive* to *predictive*:
+- **Proactive Delay Mitigation:** By predicting late deliveries with 77% AUC-ROC at the exact moment an order is placed, supply chain managers can proactively reroute shipments.
+- **Improved OTIF (On-Time In-Full):** The Control Tower's What-If simulation engine allows operators to instantly calculate the impact of upgrading delayed ground shipments to "Air Express", protecting customer satisfaction SLAs.
+- **Cost & CO₂ Optimization:** Real-time visibility into high-risk geographical zones enables dynamic carrier reallocation, reducing both emergency shipping costs and unnecessary carbon emissions.
+
+## 🏗️ System Architecture
+
+```mermaid
+graph TD
+    %% Define Nodes
+    Stream[stream_manager.py<br/>Multi-mode Generator] -->|Producer| Kafka[(Apache Kafka<br/>Message Broker)]
+    Kafka -->|Consumer| Spark[PySpark Processor<br/>Micro-batch Streaming]
+    
+    %% ML Integration
+    MLflow[(MLflow<br/>Model Registry)] -.->|Loads Model| Spark
+    
+    %% Medallion Data Flow
+    Spark -->|Raw Dump| MinIO[(MinIO S3<br/>Bronze Layer)]
+    Spark -->|Cleaned & Inferred| PostgresS[(PostgreSQL<br/>Silver Layer)]
+    PostgresS -->|SQL Transform| dbt[dbt<br/>Data Build Tool]
+    dbt -->|Dimensional Model| PostgresG[(PostgreSQL<br/>Gold Layer)]
+    
+    %% Orchestration
+    Airflow[Apache Airflow<br/>Orchestration] -.->|Triggers| dbt
+    
+    %% BI & Control Tower
+    PostgresG -->|Direct Query| PowerBI[PowerBI<br/>Strategic Dashboards]
+    PostgresS -->|psycopg2| FastAPI[FastAPI Backend<br/>Control Tower API]
+    FastAPI --> UI[Nginx Gateway<br/>Unified Dashboard UI]
+    PowerBI -.-> UI
+    
+    %% Styling
+    classDef bronze fill:#cd7f32,stroke:#333,stroke-width:1px,color:#fff;
+    classDef silver fill:#c0c0c0,stroke:#333,stroke-width:1px,color:#000;
+    classDef gold fill:#ffd700,stroke:#333,stroke-width:1px,color:#000;
+    classDef stream fill:#e25a1c,stroke:#333,stroke-width:1px,color:#fff;
+    classDef ui fill:#009688,stroke:#333,stroke-width:1px,color:#fff;
+
+    class MinIO bronze;
+    class PostgresS silver;
+    class PostgresG gold;
+    class Spark,Kafka stream;
+    class UI,FastAPI ui;
+```
 
 ---
 
