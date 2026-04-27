@@ -1,0 +1,22 @@
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: true
+    jsonData:
+      maxLines: 1000
+    
+  - name: PostgreSQL (Logistics Data)
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    user: admin_logistics
+    database: logistics_db
+    jsonData:
+      sslmode: disable
+      postgresVersion: 15
+    secureJsonData:
+      password: securepassword123

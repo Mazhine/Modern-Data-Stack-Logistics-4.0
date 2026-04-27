@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logistics Decision Center | 4.0</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet (Map) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-panel: rgba(30, 41, 59, 0.7);
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --secondary: #8b5cf6;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --card-radius: 12px;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            background-image: radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.10), transparent 25%),
+                              radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.10), transparent 25%);
+            background-attachment: fixed;
+        }
+
+        .glass {
+            background: var(--bg-panel);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--card-radius);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        /* --- Header --- */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .title-group h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin: 0;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .title-group p {
+            margin: 0.2rem 0 0 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn-action {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--glass-border);
+            color: #fff;
+            padding: 0.6rem 1.2rem;
+            border-radius: 50px;
+            cursor: pointer;
+            font-family: 'Inter';
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+        .btn-action:hover {
+            background: rgba(255,255,255,0.1);
+            transform: translateY(-2px);
+        }
+        .btn-action.primary {
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            border: none;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.4rem 1rem 0.4rem 0.4rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 50px;
+            border: 1px solid var(--glass-border);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .user-profile:hover { background: rgba(255,255,255,0.1); }
+        .avatar {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            background: var(--primary);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-family: 'Outfit';
+        }
+
+        /* --- Scorecards (Top) --- */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+        }
+
+        .kpi-card {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            border-top: 4px solid var(--glass-border);
+            transition: all 0.3s ease;
+        }
+        .kpi-card.success { border-top-color: var(--success); }
+        .kpi-card.warning { border-top-color: var(--warning); }
+        .kpi-card.danger { border-top-color: var(--danger); }
+        .kpi-card.info { border-top-color: var(--primary); }
+
+        .kpi-header {
+            display: flex; justify-content: space-between; align-items: center;
+            color: var(--text-muted);
+            font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .kpi-value {
+            font-family: 'Outfit';
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1;
+            margin: 0.5rem 0;
+            display: flex; align-items: baseline; gap: 0.5rem;
+        }
+        .kpi-context {
+            font-size: 0.85rem;
+            display: flex; align-items: center; gap: 0.4rem;
+        }
+        .trend-up { color: var(--success); }
+        .trend-down { color: var(--danger); }
+
+        /* --- Middle Section (Map & Chart) --- */
+        .middle-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+            height: 400px;
+        }
+
+        .map-container {
+            height: 100%;
+            width: 100%;
+            border-radius: var(--card-radius);
+            z-index: 1; /* For leaflet */
+        }
+        /* Dark theme for leaflet */
+        .leaflet-layer,
+        .leaflet-control-zoom-in,
+        .leaflet-control-zoom-out,
+        .leaflet-control-attribution {
+            filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 100%;
+            width: 100%;
+        }
+
+        /* --- Bottom Section (Table & Carrier Chart) --- */
+        .bottom-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+        th {
+            padding: 1rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            border-bottom: 1px solid var(--glass-border);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        tr:last-child td { border-bottom: none; }
+        
+        .badge {
+            padding: 0.3rem 0.6rem;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge-danger { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge-warning { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge-success { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
+
+        .loader-bar {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary), var(--primary));
+            background-size: 200% 100%;
+            animation: loadingBar 2s linear infinite;
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .loader-bar.active { opacity: 1; }
+
+        @keyframes loadingBar {
+            0% { background-position: 100% 0; }
+            100% { background-position: -100% 0; }
+        }
+
+        /* Print optimization */
+        @media print {
+            body { background: white; color: black; }
+            .glass { box-shadow: none; border: 1px solid #ccc; background: white; }
+            .title-group h1 { -webkit-text-fill-color: black; }
+            .header-actions, .user-profile { display: none; }
+            canvas { max-width: 100% !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="loader-bar" id="loader"></div>
+
+    <div class="container">
+        <!-- HEADER -->
+        <header>
+            <div class="title-group">
+                <h1>Decision Center</h1>
+                <p>Control Tower 4.0 — Supervision Temps Réel & Prescriptive</p>
+            </div>
+            <div class="header-actions">
+                <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); font-size: 0.85rem; margin-right: 1rem;">
+                    <i data-lucide="radio" class="pulse-icon" style="color: var(--success); width: 16px;"></i>
+                    <span id="last-sync">Sync: en cours...</span>
+                </div>
+                <button class="btn-action" onclick="window.print()"><i data-lucide="printer"></i> Export PDF</button>
+                <div class="user-profile" onclick="window.location.href='/api/logout'" title="Se déconnecter">
+                    <div class="avatar">RH</div>
+                    <div style="line-height: 1.2;">
+                        <div style="font-weight: 600; font-family: 'Outfit'; font-size: 0.9rem;">Directeur Logistique</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted)">Logout</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- TOP: SCORECARDS -->
+        <div class="kpi-grid">
+            <div class="glass kpi-card" id="card-otif">
+                <div class="kpi-header">
+                    <span>Indice OTIF</span>
+                    <i data-lucide="target" style="color: var(--text-muted);"></i>
+                </div>
+                <div class="kpi-value"><span id="kpi-otif">--</span><span style="font-size: 1rem; color: var(--text-muted);">%</span></div>
+                <div class="kpi-context">
+                    <i data-lucide="trending-up" class="trend-up" id="otif-icon"></i>
+                    <span id="otif-context" class="trend-up">-- vs obj. 95%</span>
+                </div>
+            </div>
+
+            <div class="glass kpi-card" id="card-risk">
+                <div class="kpi-header">
+                    <span>Risque de Retard</span>
+                    <i data-lucide="alert-triangle" style="color: var(--text-muted);"></i>
+                </div>
+                <div class="kpi-value"><span id="kpi-risk">--</span><span style="font-size: 1rem; color: var(--text-muted);">%</span></div>
+                <div class="kpi-context">
+                    <i data-lucide="trending-down" class="trend-down" id="risk-icon"></i>
+                    <span id="risk-context">Seuil alerte: 15%</span>
+                </div>
+            </div>
+
+            <div class="glass kpi-card" id="card-rev">
+                <div class="kpi-header">
+                    <span>Volume Financier (Gold)</span>
+                    <i data-lucide="dollar-sign" style="color: var(--text-muted);"></i>
+                </div>
+                <div class="kpi-value"><span id="kpi-rev">--</span><span style="font-size: 1rem; color: var(--text-muted);">k$</span></div>
+                <div class="kpi-context">
+                    <i data-lucide="trending-up" class="trend-up"></i>
+                    <span class="trend-up">+4.2% vs période préc.</span>
+                </div>
+            </div>
+
+            <div class="glass kpi-card" id="card-co2">
+                <div class="kpi-header">
+                    <span>Empreinte Carbone Est.</span>
+                    <i data-lucide="leaf" style="color: var(--text-muted);"></i>
+                </div>
+                <div class="kpi-value"><span id="kpi-co2">--</span><span style="font-size: 1rem; color: var(--text-muted);">tCO₂</span></div>
+                <div class="kpi-context">
+                    <i data-lucide="activity" style="color: var(--text-muted);"></i>
+                    <span style="color: var(--text-muted);">Objectif Net Zero</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- MIDDLE: MAP & TIME SERIES -->
+        <div class="middle-grid">
+            <div class="glass" style="padding: 0;">
+                <!-- Overlay title for map -->
+                <div style="position: absolute; top: 1.5rem; left: 1.5rem; z-index: 1000; pointer-events: none; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">
+                    <h3 style="margin: 0; font-family: 'Outfit';">Distribution Géospatiale des Flux</h3>
+                    <p style="margin: 0; font-size: 0.85rem; color: #cbd5e1;">Heatmap des points de livraison (Simulés par marché)</p>
+                </div>
+                <div id="map" class="map-container"></div>
+            </div>
+            <div class="glass">
+                <h3 style="margin-top: 0; font-family: 'Outfit';">Évolution du Risque & Prédiction</h3>
+                <div class="chart-container">
+                    <canvas id="riskChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOTTOM: ACTIONABLE TABLE & BAR CHART -->
+        <div class="bottom-grid">
+            <div class="glass table-wrapper">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <div>
+                        <h3 style="margin: 0; font-family: 'Outfit';">Urgences Opérationnelles (Root Cause Analysis)</h3>
+                        <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted);">Top 5 commandes à risque imminent nécessitant une action prescriptive.</p>
+                    </div>
+                    <button class="btn-action" onclick="fetchData()" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;"><i data-lucide="refresh-cw"></i> Rafraîchir</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Commande</th>
+                            <th>Marché / Région</th>
+                            <th>Mode d'Expédition</th>
+                            <th>Retard Estimé</th>
+                            <th>Cause Racine Probable (IA)</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody id="emergency-table">
+                        <!-- Filled by JS -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="glass">
+                <h3 style="margin-top: 0; font-family: 'Outfit';">Performance des Transporteurs</h3>
+                <div class="chart-container">
+                    <canvas id="carrierChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // Globals
+        let map;
+        let riskChartInst;
+        let carrierChartInst;
+
+        // Configuration
+        const REFRESH_RATE_MS = 15000; // Auto-refresh every 15s (Polling pushing limits)
+        let autoRefreshTimer = null;
+
+        // Init Map
+        function initMap() {
+            map = L.map('map').setView([20, 0], 2);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(map);
+        }
+
+        // Add markers to map based on region data (Simulated coords for regions)
+        const REGION_COORDS = {
+            'Western Europe': [48.8566, 2.3522],
+            'Central America': [12.7690, -85.6024],
+            'South America': [-14.2350, -51.9253],
+            'Eastern Asia': [35.8617, 104.1954],
+            'Oceania': [-25.2744, 133.7751],
+            'North America': [37.0902, -95.7129],
+            'Southern Europe': [41.8719, 12.5674],
+            'Northern Europe': [60.1282, 18.6435]
+        };
+
+        function updateMap(data) {
+            // Clear existing markers
+            map.eachLayer((layer) => {
+                if (layer instanceof L.CircleMarker) map.removeLayer(layer);
+            });
+
+            // Count orders per region
+            const regionCounts = {};
+            data.forEach(row => {
+                const reg = row['ORDER_REGION'] || row['MARKET'];
+                if (reg) regionCounts[reg] = (regionCounts[reg] || 0) + 1;
+            });
+
+            // Add bubbles
+            Object.entries(regionCounts).forEach(([region, count]) => {
+                let coords = REGION_COORDS[region];
+                // Fallback random coords if region unknown
+                if (!coords) coords = [(Math.random() * 100) - 50, (Math.random() * 360) - 180];
+                
+                const radius = Math.max(5, Math.min(count / 10, 30)); // Scale radius
+                L.circleMarker(coords, {
+                    radius: radius,
+                    fillColor: "#f59e0b",
+                    color: "#f59e0b",
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.6
+                }).addTo(map).bindPopup(`<b>${region}</b><br>${count} Commandes actives`);
+            });
+        }
+
+        // Init Charts
+        function initCharts() {
+            Chart.defaults.color = '#94a3b8';
+            Chart.defaults.font.family = 'Inter';
+
+            const ctxRisk = document.getElementById('riskChart').getContext('2d');
+            riskChartInst = new Chart(ctxRisk, {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: '% Risque de Retard', data: [], borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100 } } }
+            });
+
+            const ctxCarrier = document.getElementById('carrierChart').getContext('2d');
+            carrierChartInst = new Chart(ctxCarrier, {
+                type: 'bar',
+                data: { labels: [], datasets: [{ label: 'Retards', data: [], backgroundColor: '#8b5cf6', borderRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            });
+        }
+
+        function updateCharts(data) {
+            // 1. Risk Curve (simulate time series grouping by chunks or real date)
+            // Sort data by order date
+            const sorted = [...data].filter(d => d['ORDER_DATE']).sort((a,b) => new Date(a['ORDER_DATE']) - new Date(b['ORDER_DATE']));
+            const last100 = sorted.slice(-100); // Take last 100 for curve
+            
+            // Group by groups of 10 for smoothing
+            const riskLabels = [];
+            const riskData = [];
+            for (let i=0; i<last100.length; i+=10) {
+                const chunk = last100.slice(i, i+10);
+                const riskCount = chunk.filter(c => String(c['LATE_DELIVERY_RISK']) === '1').length;
+                riskLabels.push(`T-${last100.length - i}`);
+                riskData.push((riskCount / chunk.length) * 100);
+            }
+            riskChartInst.data.labels = riskLabels;
+            riskChartInst.data.datasets[0].data = riskData;
+            riskChartInst.update();
+
+            // 2. Carrier Performance (Simulated via Shipping Mode since carrier isn't explicit in this dataset)
+            const carriers = {};
+            data.forEach(row => {
+                const mode = row['SHIPPING_MODE'] || 'Unknown';
+                if (!carriers[mode]) carriers[mode] = { total: 0, late: 0 };
+                carriers[mode].total++;
+                if (String(row['LATE_DELIVERY_RISK']) === '1') carriers[mode].late++;
+            });
+            const cLabels = Object.keys(carriers);
+            const cData = cLabels.map(c => (carriers[c].late / carriers[c].total) * 100); // Late %
+            carrierChartInst.data.labels = cLabels;
+            carrierChartInst.data.datasets[0].data = cData;
+            carrierChartInst.update();
+        }
+
+        // Root Cause Logic (Simulated AI Inference)
+        function analyzeRootCause(row) {
+            const delayDays = (row['DAYS_FOR_SHIPPING_REAL'] || 0) - (row['DAYS_FOR_SHIPMENT_SCHEDULED'] || 0);
+            const mode = row['SHIPPING_MODE'];
+            
+            if (delayDays > 3 && mode === 'First Class') return "Problème Douane / Clearance";
+            if (delayDays > 5) return "Rupture de Stock fournisseur";
+            if (row['ORDER_REGION'] && row['ORDER_REGION'].includes('America')) return "Congestion Portuaire (Hub)";
+            if (mode === 'Standard Class') return "Pénurie Chauffeurs (Dernier km)";
+            return "Alerte Météo (Transit)";
+        }
+
+        function updateEmergencyTable(data) {
+            const tbody = document.getElementById('emergency-table');
+            tbody.innerHTML = '';
+            
+            // Filter late risks
+            const lateOrders = data.filter(r => String(r['LATE_DELIVERY_RISK']) === '1' && r['ORDER_STATUS'] !== 'CANCELED');
+            // Sort by worst delay
+            lateOrders.sort((a,b) => {
+                const delayA = (b['DAYS_FOR_SHIPPING_REAL'] || 0) - (b['DAYS_FOR_SHIPMENT_SCHEDULED'] || 0);
+                const delayB = (a['DAYS_FOR_SHIPPING_REAL'] || 0) - (a['DAYS_FOR_SHIPMENT_SCHEDULED'] || 0);
+                return delayB - delayA;
+            });
+
+            const top5 = lateOrders.slice(0, 5);
+            
+            if (top5.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Aucune urgence détectée. Flux nominal.</td></tr>`;
+                return;
+            }
+
+            top5.forEach(row => {
+                const delay = (row['DAYS_FOR_SHIPPING_REAL'] || 0) - (row['DAYS_FOR_SHIPMENT_SCHEDULED'] || 0);
+                const cause = analyzeRootCause(row);
+                
+                let delayBadge = `<span class="badge badge-warning">+${delay} jours</span>`;
+                if (delay >= 4) delayBadge = `<span class="badge badge-danger">+${delay} jours (Critique)</span>`;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>#${row['ORDER_ID'] || 'UNK'}</strong></td>
+                    <td>${row['ORDER_REGION'] || row['MARKET'] || 'N/A'}</td>
+                    <td>${row['SHIPPING_MODE'] || 'N/A'}</td>
+                    <td>${delayBadge}</td>
+                    <td style="color: #a78bfa;"><i data-lucide="brain-circuit" style="width:14px; margin-right:4px;"></i>${cause}</td>
+                    <td><span class="badge badge-danger">Bloqué</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            lucide.createIcons();
+        }
+
+        // Main Data Fetch
+        async function fetchData() {
+            const loader = document.getElementById('loader');
+            loader.classList.add('active');
+            try {
+                // Fetch up to 2000 rows for good stats
+                const res = await fetch('/db/table/silver_orders?limit=2000');
+                if (res.status === 401) { window.location.href = '/'; return; }
+                const payload = await res.json();
+                
+                if (payload.error) throw new Error(payload.error);
+                
+                const data = payload.rows;
+                if (!data || data.length === 0) {
+                    console.log("No data");
+                    document.getElementById('last-sync').innerText = "Sync: OK (Vide)";
+                    return;
+                }
+
+                // --- Calculate OTIF ---
+                // On-Time = LATE_DELIVERY_RISK == 0
+                // In-Full = ORDER_STATUS == COMPLETE (Assuming completed means full)
+                let onTimeCount = 0;
+                let revenue = 0;
+                let riskCount = 0;
+                let co2Total = 0;
+
+                data.forEach(r => {
+                    if (String(r['LATE_DELIVERY_RISK']) === '0') onTimeCount++;
+                    if (String(r['LATE_DELIVERY_RISK']) === '1') riskCount++;
+                    revenue += parseFloat(r['ORDER_ITEM_TOTAL'] || 0);
+                    
+                    // Empreinte Carbone Estimation (Mock formula based on shipping mode)
+                    const mode = r['SHIPPING_MODE'];
+                    let co2PerOrder = 0.05; // base 50kg
+                    if (mode === 'First Class') co2PerOrder = 0.15; // Avion
+                    if (mode === 'Standard Class') co2PerOrder = 0.08; // Camion
+                    co2Total += co2PerOrder;
+                });
+
+                const otifRate = (onTimeCount / data.length) * 100;
+                const riskRate = (riskCount / data.length) * 100;
+
+                // Update UI
+                document.getElementById('kpi-otif').innerText = otifRate.toFixed(1);
+                document.getElementById('kpi-risk').innerText = riskRate.toFixed(1);
+                document.getElementById('kpi-rev').innerText = (revenue / 1000).toFixed(1); // en k$
+                document.getElementById('kpi-co2').innerText = co2Total.toFixed(1);
+
+                // Threshold logic (Colors)
+                const riskCard = document.getElementById('card-risk');
+                if (riskRate > 15) {
+                    riskCard.className = 'glass kpi-card danger';
+                    document.getElementById('risk-icon').className = 'trend-up'; // up is bad for risk
+                    document.getElementById('risk-icon').setAttribute('data-lucide', 'trending-up');
+                } else if (riskRate > 5) {
+                    riskCard.className = 'glass kpi-card warning';
+                } else {
+                    riskCard.className = 'glass kpi-card success';
+                }
+
+                const otifCard = document.getElementById('card-otif');
+                if (otifRate >= 95) otifCard.className = 'glass kpi-card success';
+                else if (otifRate >= 85) otifCard.className = 'glass kpi-card warning';
+                else otifCard.className = 'glass kpi-card danger';
+
+                updateMap(data);
+                updateCharts(data);
+                updateEmergencyTable(data);
+
+                const time = new Date().toLocaleTimeString('fr-FR');
+                document.getElementById('last-sync').innerText = `Sync: OK (${time})`;
+
+            } catch (e) {
+                console.error("Fetch error", e);
+                document.getElementById('last-sync').innerText = "Sync: Erreur";
+            } finally {
+                loader.classList.remove('active');
+                lucide.createIcons();
+                // Schedule next push
+                clearTimeout(autoRefreshTimer);
+                autoRefreshTimer = setTimeout(fetchData, REFRESH_RATE_MS);
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            initCharts();
+            fetchData(); // first load
+        });
+    </script>
+</body>
+</html>

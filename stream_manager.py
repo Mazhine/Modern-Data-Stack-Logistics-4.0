@@ -26,12 +26,12 @@ import logging_loki
 
 
 # ==============================================================================
-# CONFIGURATION
+# CONFIGURATION — supports both HOST (localhost) and Docker (kafka:29092) contexts
 # ==============================================================================
-LOKI_URL = "http://localhost:3100/loki/api/v1/push"
-KAFKA_BOOTSTRAP_SERVERS = ['localhost:9092']
+LOKI_URL = os.environ.get('LOKI_URL', 'http://localhost:3100/loki/api/v1/push')
+KAFKA_BOOTSTRAP_SERVERS = [os.environ.get('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')]
 KAFKA_TOPIC = 'dataco_orders'
-DATASET_FILE_PATH = '../DataCoSupplyChainDataset.csv'
+DATASET_FILE_PATH = os.environ.get('DATASET_FILE_PATH', '../DataCoSupplyChainDataset.csv')
 CURSOR_FILE = 'stream_cursor.txt'
 
 # Configure Loki Emitter
@@ -502,8 +502,9 @@ class AIOStreamMode:
 class StreamingManager:
     """Manages the lifecycle and execution of the data stream."""
 
-    def __init__(self, mode: str):
+    def __init__(self, mode: str, delay: float = 0.1):
         self.mode = mode
+        self._event_delay = delay
         self.producer = KafkaProducer(
             bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
             value_serializer=lambda v: json.dumps(v, default=str).encode('utf-8')
@@ -565,7 +566,8 @@ class StreamingManager:
                 logger.warning(f"Cursor read failed: {e}. Defaulting to 0.")
 
         df = df.iloc[start_index:]
-        stats_log_interval = 50  # Log AI stats every 50 events
+        stats_log_interval = 50
+        event_delay = getattr(args, 'delay', 0.1) if 'args' in dir() else 0.1
 
         try:
             for idx_offset, (_, row) in enumerate(df.iterrows()):
@@ -606,7 +608,7 @@ class StreamingManager:
                 with open(CURSOR_FILE, 'w') as f:
                     f.write(str(start_index + idx_offset + 1))
 
-                time.sleep(0.1)
+                time.sleep(self._event_delay)
 
         except KeyboardInterrupt:
             logger.info("Stream gracefully terminated by operator.")
@@ -652,10 +654,16 @@ def parse_arguments() -> argparse.Namespace:
             "  aio   — All-In-One: 35%% nominal / 30%% AI boundary / 20%% mix / 15%% chaos"
         )
     )
+    parser.add_argument(
+        '--delay',
+        type=float,
+        default=0.1,
+        help='Delay in seconds between events (default: 0.1 = 10 events/sec)'
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_arguments()
-    manager = StreamingManager(mode=args.mode)
+    manager = StreamingManager(mode=args.mode, delay=args.delay)
     manager.execute_stream()

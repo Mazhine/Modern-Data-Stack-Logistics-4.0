@@ -13,6 +13,9 @@ import os
 import shutil
 
 os.environ["GIT_PYTHON_REFRESH"] = "quiet"  # Silence git warning
+os.environ["AWS_ACCESS_KEY_ID"] = "admin"
+os.environ["AWS_SECRET_ACCESS_KEY"] = "password"
+os.environ["MLFLOW_S3_ENDPOINT_URL"] = "http://minio:9000"
 
 import mlflow
 import mlflow.spark
@@ -62,7 +65,17 @@ class SparkModelTrainer:
 
         self.spark = SparkSession.builder \
             .appName("Logistics40_Model_Training") \
+            .config("spark.driver.memory", "2g") \
             .getOrCreate()
+            
+        # Configure Hadoop to use MinIO for S3 MLflow Artifacts
+        hadoop_conf = self.spark.sparkContext._jsc.hadoopConfiguration()
+        hadoop_conf.set("fs.s3a.endpoint", "http://minio:9000")
+        hadoop_conf.set("fs.s3a.access.key", "admin")
+        hadoop_conf.set("fs.s3a.secret.key", "password")
+        hadoop_conf.set("fs.s3a.path.style.access", "true")
+        hadoop_conf.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+        hadoop_conf.set("fs.s3a.connection.ssl.enabled", "false")
         self.spark.sparkContext.setLogLevel("WARN")
 
     def _load_data(self) -> DataFrame:

@@ -1,58 +1,39 @@
-let currentToken = "";
-let pollInterval = null;
+// --- Auth Logic (Relying on Cookies) ---
+const logoutBtn = document.getElementById('logout-btn');
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+        window.location.href = '/logout';
+    });
+}
 
 // --- DOM Elements ---
-const loginScreen = document.getElementById('login-screen');
-const mainApp = document.getElementById('main-app');
-const loginBtn = document.getElementById('login-btn');
-const usernameInput = document.getElementById('username');
-const passwordInput = document.getElementById('password');
-const loginError = document.getElementById('login-error');
-
 const navItems = document.querySelectorAll('.nav-item');
-const subViews = document.querySelectorAll('.sub-view');
 const mainFrame = document.getElementById('main-frame');
-const iframeBlocked = document.getElementById('iframe-blocked');
 const externalLink = document.getElementById('external-link');
-
 const btnStreamStart = document.getElementById('btn-stream-start');
 const btnStreamStop = document.getElementById('btn-stream-stop');
+const btnThemeToggle = document.getElementById('btn-theme-toggle');
+
+// --- Theme Toggle ---
+if (btnThemeToggle) {
+    btnThemeToggle.addEventListener('click', () => {
+        const isDark = document.body.classList.contains('dark-theme');
+        if (isDark) {
+            document.body.classList.remove('dark-theme');
+            document.body.classList.add('light-theme');
+            btnThemeToggle.innerHTML = '<i data-lucide="moon"></i> Dark';
+        } else {
+            document.body.classList.remove('light-theme');
+            document.body.classList.add('dark-theme');
+            btnThemeToggle.innerHTML = '<i data-lucide="sun"></i> Light';
+        }
+        lucide.createIcons();
+    });
+}
+
 const streamModeSelect = document.getElementById('stream-mode');
 const containerList = document.getElementById('container-list');
 const statMode = document.getElementById('stat-mode');
-
-// --- Auth Logic ---
-loginBtn.addEventListener('click', async () => {
-    const user = usernameInput.value;
-    const pass = passwordInput.value;
-    
-    // Create Basic Auth header
-    const token = btoa(`${user}:${pass}`);
-    
-    try {
-        const res = await fetch('/api/status', {
-            headers: { 'Authorization': `Basic ${token}` }
-        });
-        
-        if (res.ok) {
-            currentToken = token;
-            loginScreen.classList.add('hidden');
-            mainApp.classList.remove('hidden');
-            document.getElementById('display-user').innerText = user;
-            startPolling();
-        } else {
-            loginError.innerText = "Identifiants invalides ou serveur indisponible.";
-        }
-    } catch (err) {
-        loginError.innerText = "Erreur de connexion au Control Tower.";
-    }
-});
-
-document.getElementById('logout-btn').addEventListener('click', () => {
-    currentToken = "";
-    clearInterval(pollInterval);
-    window.location.reload();
-});
 
 // --- Navigation ---
 navItems.forEach(item => {
@@ -64,27 +45,75 @@ navItems.forEach(item => {
         navItems.forEach(i => i.classList.remove('active'));
         item.classList.add('active');
         
-        // Toujours cacher toutes les vues d'abord
-        document.getElementById('view-dashboard').classList.add('hidden');
-        document.getElementById('view-iframe').classList.add('hidden');
-        document.getElementById('view-postgres').classList.add('hidden');
+        // Cacher toutes les vues
+        const views = ['view-dashboard', 'view-iframe', 'view-postgres'];
+        views.forEach(v => {
+            const el = document.getElementById(v);
+            if (el) el.classList.add('hidden');
+        });
 
         // Switch Views
         if (target === 'dashboard') {
-            document.getElementById('view-dashboard').classList.remove('hidden');
+            const el = document.getElementById('view-dashboard');
+            if (el) el.classList.remove('hidden');
         } else if (target === 'postgres') {
-            document.getElementById('view-postgres').classList.remove('hidden');
+            const el = document.getElementById('view-postgres');
+            if (el) el.classList.remove('hidden');
             loadDbTables();
         } else {
-            document.getElementById('view-iframe').classList.remove('hidden');
-            mainFrame.src = url;
-            externalLink.href = url;
+            const el = document.getElementById('view-iframe');
+            if (el) el.classList.remove('hidden');
+            if (mainFrame) mainFrame.src = url;
+            if (externalLink) externalLink.href = url;
+            showCredentialBanner(target);
         }
     });
 });
 
+// --- Credential Tooltip ---
+const SERVICE_CREDS = {
+    'airflow': { service: 'Airflow',  user: 'admin',   pass: 'admin'    },
+    'minio':   { service: 'MinIO',    user: 'admin',   pass: 'password' },
+    'grafana': { service: 'Grafana',  user: 'admin',   pass: 'admin'    },
+};
+
+function showCredentialBanner(target) {
+    const tooltip  = document.getElementById('credential-tooltip');
+    const toggle   = document.getElementById('cred-toggle');
+    const creds    = SERVICE_CREDS[target];
+    if (!creds || !tooltip || !toggle) { 
+        if(tooltip) tooltip.classList.add('hidden'); 
+        if(toggle) toggle.classList.add('hidden'); 
+        return; 
+    }
+    document.getElementById('cred-service-label').textContent = '🔑 ' + creds.service;
+    document.getElementById('cred-u').textContent = creds.user;
+    document.getElementById('cred-p').textContent = creds.pass;
+    toggle.classList.remove('hidden');
+    tooltip.classList.remove('hidden');
+    clearTimeout(tooltip._t);
+    tooltip._t = setTimeout(() => tooltip.classList.add('hidden'), 6000);
+    if (window.lucide) lucide.createIcons();
+}
+
+function toggleCredTooltip() {
+    const t = document.getElementById('credential-tooltip');
+    if (t) t.classList.toggle('hidden');
+    if (window.lucide) lucide.createIcons();
+}
+
+function quickCopy(id, btn) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    navigator.clipboard.writeText(el.textContent).then(() => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '✓';
+        setTimeout(() => { btn.innerHTML = orig; if (window.lucide) lucide.createIcons(); }, 1500);
+    });
+}
+
 // --- Architecture Node Clicks ---
-const nodes = {
+const nodeMap = {
     'node-source': 'dashboard',
     'node-kafka': 'kafka',
     'node-spark': 'spark',
@@ -96,43 +125,34 @@ const nodes = {
     'node-mlflow': 'mlflow'
 };
 
-Object.entries(nodes).forEach(([nodeId, target]) => {
+Object.entries(nodeMap).forEach(([nodeId, target]) => {
     const nodeEl = document.getElementById(nodeId);
     if (nodeEl) {
         nodeEl.style.cursor = 'pointer';
         nodeEl.addEventListener('click', () => {
-            console.log(`Node clicked: ${nodeId} -> target: ${target}`);
             const navItem = document.querySelector(`.nav-item[data-target="${target}"]`);
             if (navItem) navItem.click();
         });
     }
 });
 
-// Detect Iframe Loading
-mainFrame.onload = function() {
-    console.log("Iframe loaded: " + mainFrame.src);
-    // We no longer block with an overlay, as it false-triggers on cross-origin
-};
-
 // --- Stream Control ---
-btnStreamStart.addEventListener('click', async () => {
-    const mode = streamModeSelect.value;
-    const delay = document.getElementById('stream-delay').value;
-    await fetch(`/api/stream/start?mode=${mode}&delay=${delay}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Basic ${currentToken}` }
+if (btnStreamStart) {
+    btnStreamStart.addEventListener('click', async () => {
+        const mode = streamModeSelect.value;
+        const delay = document.getElementById('stream-delay').value;
+        await fetch(`/stream/start?mode=${mode}&delay=${delay}`, { method: 'POST' });
+        updateStatus();
     });
-    updateStatus();
-});
+}
 
-btnStreamStop.addEventListener('click', async () => {
-    await fetch('/api/stream/stop', {
-        method: 'POST',
-        headers: { 'Authorization': `Basic ${currentToken}` }
+if (btnStreamStop) {
+    btnStreamStop.addEventListener('click', async () => {
+        await fetch('/stream/stop', { method: 'POST' });
+        updateStatus();
+        addTerminalLog("Flux interrompu par l'utilisateur.", 'SYS', 'term-sys');
     });
-    updateStatus();
-    addTerminalLog("Flux interrompu par l'utilisateur.", 'SYS', 'term-sys');
-});
+}
 
 // --- Terminal Simulator ---
 const terminalWindow = document.getElementById('terminal-window');
@@ -153,194 +173,96 @@ function addTerminalLog(msg, prefix = "APP", cssClass = "term-msg") {
     const time = new Date().toISOString().split('T')[1].slice(0,8);
     div.innerHTML = `<span class="term-time">[${time}]</span> <span class="${cssClass}">[${prefix}] ${msg}</span>`;
     terminalWindow.appendChild(div);
-    if (terminalWindow.childElementCount > 30) {
-        terminalWindow.removeChild(terminalWindow.firstChild);
-    }
+    if (terminalWindow.childElementCount > 30) terminalWindow.removeChild(terminalWindow.firstChild);
     terminalWindow.scrollTop = terminalWindow.scrollHeight;
 }
 
 function startTerminalSimulator() {
     if (termInterval) clearInterval(termInterval);
     termInterval = setInterval(() => {
-        if (!document.getElementById('btn-stream-start').classList.contains('hidden')) return;
-
+        if (btnStreamStart && !btnStreamStart.classList.contains('hidden')) return;
+        if (!statMode) return;
         const mode = statMode.innerText;
         let msg = logMessages[Math.floor(Math.random() * logMessages.length)];
-
-        if (mode.includes('CHAOS') && Math.random() > 0.7) {
-            msg = '[ALERT] Chaos Injection: Data corruption detected in pipeline!';
-            addTerminalLog(msg, 'ERR', 'term-sys');
-        } else if (mode.includes('AIO') && Math.random() > 0.6) {
-            const aioMsgs = [
-                '[AIO:BOUNDARY] Uncertainty sampling → edge case redirected',
-                '[AIO:NOMINAL] Real dataset event dispatched (35% baseline)',
-                '[AIO:MIX] SmartMix anomaly injected: SCHEDULING_PARADOX',
-                '[AIO:CHAOS] Extreme case → revenue integrity violation',
-                '[AIO:STATS] dist={nominal:35%, boundary:31%, mix:20%, chaos:14%}',
-            ];
-            msg = aioMsgs[Math.floor(Math.random() * aioMsgs.length)];
-            addTerminalLog(msg, 'AIO', 'term-highlight');
-        } else if (mode.includes('IA') && Math.random() > 0.6) {
-            const iaMsgs = [
-                '[AI:BOUNDARY] error_rate=0.287 — injecting edge case',
-                '[AI:NOMINAL] Regime CHALLENGING — model doing well',
-                '[AI:RESET] High error detected — sending clean data',
-                '[AI:STATS] {"error_rate":0.31,"regime":"BOUNDARY"}',
-            ];
-            msg = iaMsgs[Math.floor(Math.random() * iaMsgs.length)];
-            addTerminalLog(msg, 'AI', 'term-success');
-        } else {
-            addTerminalLog(msg, 'APP', 'term-msg');
-        }
+        addTerminalLog(msg, 'APP', 'term-msg');
     }, 1500);
 }
 
 // --- Polling & Status ---
 async function updateStatus() {
-    if (!currentToken) return;
-    
     try {
-        const res = await fetch('/api/status', {
-            headers: { 'Authorization': `Basic ${currentToken}` }
-        });
+        const res = await fetch('/status');
+        if (res.status === 401) { window.location.href = "/"; return; }
         const data = await res.json();
         
-        // Update Containers
-        containerList.innerHTML = '';
-        if (data.containers) {
+        if (containerList && data.containers) {
+            containerList.innerHTML = '';
             data.containers.sort((a,b) => a.name.localeCompare(b.name)).forEach(c => {
                 const item = document.createElement('div');
                 item.className = 'container-item';
                 const statusClass = c.status === 'running' ? 'status-running' : 'status-stopped';
-                item.innerHTML = `
-                    <span>${c.name}</span>
-                    <span class="${statusClass}">${c.status.toUpperCase()}</span>
-                `;
+                item.innerHTML = `<span>${c.name}</span><span class="${statusClass}">${c.status.toUpperCase()}</span>`;
                 containerList.appendChild(item);
             });
         }
         
-        // Update Stream Buttons
-        if (data.stream_active) {
-            btnStreamStart.classList.add('hidden');
-            btnStreamStop.classList.remove('hidden');
-            
-            // Update Medallion Streaming Animations
-            const flowchart = document.querySelector('.flowchart-container');
-            if (flowchart) {
-                flowchart.classList.add('streaming-active');
+        if (btnStreamStart && btnStreamStop) {
+            if (data.stream_active) {
+                btnStreamStart.classList.add('hidden');
+                btnStreamStop.classList.remove('hidden');
+                if (statMode) statMode.innerText = data.stream_mode.toUpperCase();
+            } else {
+                btnStreamStart.classList.remove('hidden');
+                btnStreamStop.classList.add('hidden');
+                if (statMode) statMode.innerText = 'IDLE';
             }
-            
-            statMode.innerText = data.stream_mode.toUpperCase();
-            // Couleur selon le mode
-            const modeColors = {
-                'sain':  'var(--accent-emerald)',
-                'mix':   'var(--accent-cyan)',
-                'chaos': 'var(--accent-red)',
-                'ia':    '#a78bfa',   // violet
-                'aio':   '#f59e0b'    // doré premium
-            };
-            statMode.style.color = modeColors[data.stream_mode] || 'var(--accent-blue)';
-            // Start arrows animation
-            document.querySelectorAll('.arrow, .arrow-vertical').forEach(a => a.classList.add('passing'));
-        } else {
-            btnStreamStart.classList.remove('hidden');
-            btnStreamStop.classList.add('hidden');
-            
-            // Update Medallion Streaming Animations
-            const flowchart = document.querySelector('.flowchart-container');
-            if (flowchart) {
-                flowchart.classList.remove('streaming-active');
-            }
-            
-            statMode.innerText = 'IDLE';
-            statMode.style.color = 'var(--text-secondary)';
-            // Stop arrows animation
-            document.querySelectorAll('.arrow, .arrow-vertical').forEach(a => a.classList.remove('passing'));
         }
-        
     } catch (err) {
         console.error("Failed to poll status", err);
     }
 }
 
 function startPolling() {
-    if (pollInterval) clearInterval(pollInterval);
     updateStatus();
     startTerminalSimulator();
-    pollInterval = setInterval(updateStatus, 2000);
+    setInterval(updateStatus, 2000);
 }
 
-startPolling();
+document.addEventListener('DOMContentLoaded', startPolling);
 
-// ==============================================================================
-// POSTGRESQL NATIVE VIEWER
-// ==============================================================================
+// --- DB Viewer ---
 async function loadDbTables() {
     const listEl = document.getElementById('db-table-list');
-    const headerEl = document.getElementById('db-table-header');
-    const dataEl = document.getElementById('db-table-data');
-    listEl.innerHTML = '<div style="color:var(--text-secondary);padding:10px;">Chargement...</div>';
-    dataEl.innerHTML = '';
+    if (!listEl) return;
     try {
-        const res = await fetch('/db/tables', { headers: { 'Authorization': `Basic ${currentToken}` } });
+        const res = await fetch('/db/tables');
         const data = await res.json();
-        if (data.error) {
-            listEl.innerHTML = `<div style="color:#ef4444;padding:10px;">Erreur: ${data.error}</div>`;
-            return;
-        }
         listEl.innerHTML = '';
-        if (!data.tables || data.tables.length === 0) {
-            listEl.innerHTML = '<div style="color:var(--text-secondary);padding:10px;font-size:0.8rem;">Aucune table trouvée.<br>Lancez le stream pour peupler la DB.</div>';
-            return;
-        }
         data.tables.forEach(t => {
             const btn = document.createElement('button');
             btn.className = 'db-table-btn';
-            btn.innerHTML = `<span class="db-table-name">${t.name}</span><span class="db-table-meta">${t.rows} lignes · ${t.size}</span>`;
-            btn.onclick = () => {
-                document.querySelectorAll('.db-table-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                loadDbTable(t.name);
-            };
+            btn.innerHTML = `<span class="db-table-name">${t.name}</span><span class="db-table-meta">${t.rows} lignes</span>`;
+            btn.onclick = () => loadDbTable(t.name);
             listEl.appendChild(btn);
         });
-        headerEl.textContent = `${data.tables.length} table(s) dans logistics_db`;
-    } catch (e) {
-        listEl.innerHTML = `<div style="color:#ef4444;padding:10px;">Connexion PostgreSQL échouée</div>`;
-    }
+    } catch (e) {}
 }
 
 async function loadDbTable(tableName) {
     const dataEl = document.getElementById('db-table-data');
-    const headerEl = document.getElementById('db-table-header');
-    dataEl.innerHTML = '<div style="color:var(--text-secondary);padding:10px;">Chargement des données...</div>';
+    if (!dataEl) return;
     try {
-        const res = await fetch(`/db/table/${tableName}?limit=100`, { headers: { 'Authorization': `Basic ${currentToken}` } });
+        const res = await fetch(`/db/table/${tableName}?limit=50`);
         const data = await res.json();
-        if (data.error) {
-            dataEl.innerHTML = `<div style="color:#ef4444;">Erreur: ${data.error}</div>`;
-            return;
-        }
-        headerEl.textContent = `Table: ${tableName} — ${data.rows.length} dernières lignes`;
-        if (!data.rows.length) {
-            dataEl.innerHTML = '<div style="color:var(--text-secondary);padding:20px;text-align:center;">Table vide — lancez le stream pour insérer des données.</div>';
-            return;
-        }
         let html = '<table class="db-table"><thead><tr>';
         data.columns.forEach(c => { html += `<th>${c}</th>`; });
         html += '</tr></thead><tbody>';
         data.rows.forEach(row => {
             html += '<tr>';
-            data.columns.forEach(c => {
-                const val = row[c] ?? '';
-                html += `<td>${String(val).substring(0, 60)}</td>`;
-            });
+            data.columns.forEach(c => { html += `<td>${row[c]}</td>`; });
             html += '</tr>';
         });
         html += '</tbody></table>';
         dataEl.innerHTML = html;
-    } catch (e) {
-        dataEl.innerHTML = `<div style="color:#ef4444;">Erreur réseau</div>`;
-    }
+    } catch (e) {}
 }

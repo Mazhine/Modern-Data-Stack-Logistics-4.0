@@ -3,7 +3,7 @@ FROM bitnamilegacy/spark:3.5
 USER root
 
 # Installation des dépendances Python requises par PySpark MLlib et MLflow
-RUN pip install --no-cache-dir numpy pandas mlflow
+RUN pip install --no-cache-dir numpy pandas mlflow boto3
 
 # Fix critique: Hadoop/UnixPrincipal ne peut pas résoudre l'UID 1001
 # sans entrée dans /etc/passwd -> NullPointerException au login

@@ -3,7 +3,7 @@ dbt_logistics_profile:
   outputs:
     dev:
       type: postgres
-      host: localhost
+      host: postgres
       port: 5432
       user: admin_logistics
       password: securepassword123

@@ -3,10 +3,10 @@ import json
 import logging
 import asyncio
 from typing import List, Optional
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request, Response
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 import docker
 import subprocess
@@ -17,7 +17,37 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ControlTower")
 
 app = FastAPI(title="Logistics 4.0 Control Tower")
-security = HTTPBasic()
+
+# Auth Helpers
+def get_current_user(request: Request):
+    user = request.cookies.get("session_user")
+    if not user:
+        return None
+    return user
+
+@app.post("/login")
+async def login(request: Request, response: Response):
+    try:
+        data = await request.json()
+        user = data.get("username", "").lower()
+        pwd = data.get("password", "")
+        
+        if user == "admin" and pwd == "pfa2026":
+            response.set_cookie(key="session_user", value="admin", httponly=True)
+            return {"status": "ok", "role": "admin"}
+        if user == "rhuser" and pwd == "pfa2026":
+            response.set_cookie(key="session_user", value="rhuser", httponly=True)
+            return {"status": "ok", "role": "rhuser"}
+            
+        return {"status": "error", "message": "Invalid credentials"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    response.delete_cookie("session_user")
+    return response
 
 # Statics
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -32,23 +62,33 @@ except Exception as e:
     logger.error(f"Docker connection failed: {e}")
     client = None
 
-# Auth
-def get_auth(credentials: HTTPBasicCredentials = Depends(security)):
-    if credentials and credentials.username.lower() == "admin" and credentials.password == "pfa2026":
-        return credentials.username
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Incorrect login",
-        # Do NOT send WWW-Authenticate to avoid browser popup
-    )
-
 @app.get("/", response_class=HTMLResponse)
-async def read_index():
-    with open("static/index.html", "r", encoding="utf-8") as f:
+async def read_root(user: str = Depends(get_current_user)):
+    if not user:
+        with open("static/login.html", "r", encoding="utf-8") as f:
+            return f.read()
+    if user == "rhuser":
+        return RedirectResponse(url="/dashboard")
+    return RedirectResponse(url="/admin")
+
+@app.get("/admin", response_class=HTMLResponse)
+async def read_admin(user: str = Depends(get_current_user)):
+    if user != "admin":
+        return RedirectResponse(url="/")
+    with open("static/admin.html", "r", encoding="utf-8") as f:
+        return f.read()
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def read_dashboard(user: str = Depends(get_current_user)):
+    if user != "rhuser":
+        return RedirectResponse(url="/")
+    with open("static/dashboard.html", "r", encoding="utf-8") as f:
         return f.read()
 
 @app.get("/status")
-async def get_system_status(user: str = Depends(get_auth)):
+async def get_system_status(user: str = Depends(get_current_user)):
+    if not user:
+        raise HTTPException(status_code=401)
     """Returns the REAL status of all containers in the stack."""
     
     # Essential services we want to track
@@ -113,7 +153,7 @@ async def get_system_status(user: str = Depends(get_auth)):
     }
 
 @app.post("/stream/{action}")
-async def control_stream(action: str, mode: str = "sain", delay: float = 0.1, user: str = Depends(get_auth)):
+async def control_stream(action: str, mode: str = "sain", delay: float = 0.1, user: str = Depends(get_current_user)):
     logger.info(f"Stream action: {action} with mode: {mode} and delay: {delay}")
     
     if action == "start":
@@ -193,7 +233,7 @@ def get_db_conn():
     return psycopg2.connect(**DB_CONFIG)
 
 @app.get("/db/tables")
-async def list_tables(user: str = Depends(get_auth)):
+async def list_tables(user: str = Depends(get_current_user)):
     """Returns list of all tables with row counts."""
     try:
         conn = get_db_conn()
@@ -218,7 +258,7 @@ async def list_tables(user: str = Depends(get_auth)):
         return {"tables": [], "error": str(e)}
 
 @app.get("/db/table/{table_name}")
-async def get_table_data(table_name: str, limit: int = 100, user: str = Depends(get_auth)):
+async def get_table_data(table_name: str, limit: int = 100, user: str = Depends(get_current_user)):
     """Returns columns and last N rows from a given table."""
     # Simple sanitization
     safe_name = "".join(c for c in table_name if c.isalnum() or c == "_")
@@ -233,3 +273,120 @@ async def get_table_data(table_name: str, limit: int = 100, user: str = Depends(
         return {"columns": columns, "rows": [dict(r) for r in rows], "table": safe_name}
     except Exception as e:
         return {"columns": [], "rows": [], "error": str(e)}
+
+
+@app.get("/db/stats")
+async def get_stats(period: str = "all", date_from: str = "", date_to: str = "", user: str = Depends(get_current_user)):
+    """
+    Returns aggregated KPIs from silver_orders.
+    Supports either period shortcuts or exact date_from/date_to (ISO format YYYY-MM-DD).
+    """
+    if not user:
+        raise HTTPException(status_code=401)
+
+    # Build date filter
+    if date_from and date_to:
+        date_filter = f"AND order_date >= '{date_from}' AND order_date < '{date_to}'::date + INTERVAL '1 day'"
+    elif date_from:
+        date_filter = f"AND order_date >= '{date_from}' AND order_date < '{date_from}'::date + INTERVAL '1 day'"
+    else:
+        period_filters = {
+            "today": "AND order_date >= (SELECT MAX(order_date)::date FROM silver_orders)",
+            "week":  "AND order_date >= (SELECT MAX(order_date) - INTERVAL '7 days' FROM silver_orders)",
+            "month": "AND order_date >= (SELECT MAX(order_date) - INTERVAL '30 days' FROM silver_orders)",
+            "year":  "AND order_date >= (SELECT MAX(order_date) - INTERVAL '365 days' FROM silver_orders)",
+            "all":   ""
+        }
+        date_filter = period_filters.get(period, "")
+
+    try:
+        conn = get_db_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        cur.execute(f"""
+            SELECT
+                COUNT(*) AS total_orders,
+                COALESCE(ROUND(SUM(order_item_total)::numeric, 2), 0) AS total_revenue,
+                COALESCE(ROUND(AVG(benefit_per_order)::numeric, 2), 0) AS avg_benefit,
+                COALESCE(ROUND(SUM(benefit_per_order)::numeric, 2), 0) AS total_benefit,
+                COALESCE(ROUND(AVG(CASE WHEN is_delayed_actual = 1 THEN 1.0 ELSE 0.0 END) * 100, 1), 0) AS delay_rate,
+                COALESCE(ROUND(AVG(CASE WHEN is_delayed_actual = 0 THEN 1.0 ELSE 0.0 END) * 100, 1), 0) AS otif_rate,
+                MIN(order_date) AS period_start,
+                MAX(order_date) AS period_end
+            FROM silver_orders
+            WHERE 1=1 {date_filter}
+        """)
+        kpis = dict(cur.fetchone())
+
+        cur.execute(f"""
+            SELECT order_region, COUNT(*) AS order_count,
+                   ROUND(AVG(CASE WHEN is_delayed_actual = 1 THEN 1.0 ELSE 0.0 END) * 100, 1) AS delay_pct
+            FROM silver_orders
+            WHERE 1=1 {date_filter}
+            GROUP BY order_region ORDER BY order_count DESC LIMIT 5
+        """)
+        top_regions = [dict(r) for r in cur.fetchall()]
+
+        cur.execute(f"""
+            SELECT order_date::date AS day, COUNT(*) AS cnt
+            FROM silver_orders
+            WHERE 1=1 {date_filter}
+            GROUP BY day ORDER BY day DESC LIMIT 30
+        """)
+        daily_trend = [dict(r) for r in cur.fetchall()]
+
+        cur.close(); conn.close()
+
+        for k, v in kpis.items():
+            if hasattr(v, 'isoformat'): kpis[k] = v.isoformat()
+        for d in daily_trend:
+            if hasattr(d.get('day'), 'isoformat'): d['day'] = d['day'].isoformat()
+
+        return {"period": period, "kpis": kpis, "top_regions": top_regions, "daily_trend": daily_trend}
+    except Exception as e:
+        logger.error(f"Stats query error: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/db/orders")
+async def get_orders(period: str = "all", date_from: str = "", date_to: str = "", limit: int = 1000, user: str = Depends(get_current_user)):
+    """Returns individual orders filtered by date range for map and emergency table."""
+    if not user:
+        raise HTTPException(status_code=401)
+
+    if date_from and date_to:
+        date_filter = f"AND order_date >= '{date_from}' AND order_date < '{date_to}'::date + INTERVAL '1 day'"
+    elif date_from:
+        date_filter = f"AND order_date >= '{date_from}' AND order_date < '{date_from}'::date + INTERVAL '1 day'"
+    else:
+        period_filters = {
+            "today": "AND order_date >= (SELECT MAX(order_date)::date FROM silver_orders)",
+            "week":  "AND order_date >= (SELECT MAX(order_date) - INTERVAL '7 days' FROM silver_orders)",
+            "month": "AND order_date >= (SELECT MAX(order_date) - INTERVAL '30 days' FROM silver_orders)",
+            "year":  "AND order_date >= (SELECT MAX(order_date) - INTERVAL '365 days' FROM silver_orders)",
+            "all":   ""
+        }
+        date_filter = period_filters.get(period, "")
+
+    try:
+        conn = get_db_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(f"""
+            SELECT order_id, order_date, order_region, order_country, shipping_mode,
+                   is_delayed_actual, days_for_shipping_real, days_for_shipment_scheduled,
+                   order_item_total, benefit_per_order, customer_segment
+            FROM silver_orders
+            WHERE 1=1 {date_filter}
+            ORDER BY order_date DESC
+            LIMIT %s
+        """, (limit,))
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close(); conn.close()
+        for r in rows:
+            for k, v in r.items():
+                if hasattr(v, 'isoformat'): r[k] = v.isoformat()
+        return {"rows": rows}
+    except Exception as e:
+        logger.error(f"Orders query error: {e}")
+        return {"rows": [], "error": str(e)}
+

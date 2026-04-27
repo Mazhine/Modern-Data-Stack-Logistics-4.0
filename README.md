@@ -22,10 +22,11 @@ An enterprise-grade, real-time Machine Learning and Big Data streaming pipeline 
 * **MinIO (S3-Compatible):** On-premise Object Storage handling the **Bronze Layer** (Raw payload dump).
 * **PostgreSQL:** Handles the highly structured internal SQL data warehouse for **Silver and Gold** layers (fact_orders, dim_customer, dim_geography, dim_product).
 
-### 3. Orchestration & Machine Learning
+### 3. Orchestration, Machine Learning & BI
 * **Apache Airflow:** Automates workflow triggering (S3KeySensors tracking incoming Bronze packets).
 * **dbt (Data Build Tool):** Executes SQL semantic transformations building analytical Gold Layers.
 * **MLflow:** MLOps tracking server logging hyperparameter search results, full metrics suite (Accuracy, F1, Precision, Recall, AUC-ROC) and serialized model artifacts.
+* **PowerBI:** Strategic batch analysis engine, connecting directly to the PostgreSQL Gold layer for deep historical reporting and management dashboards.
 
 ### 4. Observability & CI/CD
 * **Grafana & Loki:** Production observability stack indexing real-time pipeline logs across all streaming modes.
@@ -33,7 +34,9 @@ An enterprise-grade, real-time Machine Learning and Big Data streaming pipeline 
 
 ### 5. Control Tower (Industrial Dashboard)
 * **Nginx Gateway & FastAPI:** Central UI unifying the full Medallion flow. Proxies all internal services (Airflow, Spark, MinIO, Grafana, MLflow) through a single authenticated gateway.
-* **PostgreSQL Native Viewer:** Built-in database explorer powered by `psycopg2` — queries the DWH tables directly without any cross-origin redirects.
+* **Dynamic Time Filtering & Analytics:** The frontend integrates a premium customizable date picker (Day/Week/Month/Year), which dynamically queries the PostgreSQL Silver layer via custom `/db/stats` and `/db/orders` API endpoints to display exact slice-in-time KPIs, live Map data, and emergency operative tables.
+* **PowerBI Datamart Integration:** Direct external embed of analytical reports.
+* **What-If Simulation:** Uses background Web Workers to simulate impact of converting delayed ground shipments to "Air Express" in real-time on KPIs without mutating the actual data.
 * **Docker SDK Integration:** Live container health monitoring across all 16 services.
 
 ---
@@ -175,6 +178,8 @@ docker-compose down
 | `POST /api/stream/stop` | POST | Gracefully terminates the active stream |
 | `GET /db/tables` | GET | Lists all PostgreSQL tables with row counts and sizes |
 | `GET /db/table/{name}?limit=N` | GET | Returns the last N rows from a given DWH table |
+| `GET /db/stats` | GET | **[NEW]** Computes and returns dynamic aggregations (OTIF, Delay Rate, Revenue, CO2) filtered by precise dates or periods (e.g. `?period=week` or `?date_from=Y-M-D&date_to=Y-M-D`). |
+| `GET /db/orders` | GET | **[NEW]** Retrieves specific, temporally-filtered payload rows to feed the interactive Map Digital Twin and the live Operational Emergencies table. |
 
 ---
 

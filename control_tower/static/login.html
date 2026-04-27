@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logistics 4.0 | Authentification</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="static/style.css?v=17">
+</head>
+<body class="dark-theme">
+    <div id="login-screen">
+        <div class="login-card">
+            <h1>LOGISTICS 4.0</h1>
+            <p style="margin-bottom: 3rem;">Portail d'Accès</p>
+            <div class="input-group">
+                <input type="text" id="username" placeholder="Utilisateur (ex: admin, rhuser)">
+            </div>
+            <div class="input-group">
+                <input type="password" id="password" placeholder="Mot de passe">
+            </div>
+            <button id="login-btn">Connexion</button>
+            <p id="login-error" class="error-msg" style="margin-top: 2rem; color: #ef4444; font-size: 1rem;"></p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+            const errorMsg = document.getElementById('login-error');
+            
+            errorMsg.innerText = "";
+            
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+                
+                const data = await res.json();
+                
+                if (res.ok && data.status === "ok") {
+                    if (data.role === "rhuser") {
+                        window.location.href = "/dashboard";
+                    } else {
+                        window.location.href = "/admin";
+                    }
+                } else {
+                    errorMsg.innerText = "Identifiants invalides.";
+                }
+            } catch (err) {
+                errorMsg.innerText = "Erreur de connexion au serveur.";
+            }
+        });
+
+        // Appuyer sur Entrée pour valider
+        document.getElementById('password').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                document.getElementById('login-btn').click();
+            }
+        });
+    </script>
+</body>
+</html>

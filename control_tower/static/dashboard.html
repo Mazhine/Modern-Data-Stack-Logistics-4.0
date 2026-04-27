@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logistics Decision Center | SAP Grade</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet AntPath for animated flows -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-ant-path@1.3.0/dist/leaflet-ant-path.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --bg-dark: #0f172a; --bg-panel: rgba(30, 41, 59, 0.7);
+            --primary: #3b82f6; --primary-glow: rgba(59, 130, 246, 0.5);
+            --secondary: #8b5cf6; --danger: #ef4444; --warning: #f59e0b; --success: #10b981;
+            --text-main: #f8fafc; --text-muted: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1); --card-radius: 12px;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 0; font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark); color: var(--text-main);
+            background-image: radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.10), transparent 25%),
+                              radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.10), transparent 25%);
+            background-attachment: fixed;
+            overflow-x: hidden;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* High Contrast Theme */
+        body[data-theme="high-contrast"] {
+            --bg-dark: #000000;
+            --bg-panel: #111111;
+            --glass-border: #333333;
+            --text-main: #ffffff;
+            --text-muted: #aaaaaa;
+            background-image: none;
+        }
+        body[data-theme="high-contrast"] .glass { backdrop-filter: none; box-shadow: 0 0 0 1px #333; }
+
+        .glass {
+            background: var(--bg-panel); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border); border-radius: var(--card-radius);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2); padding: 1.5rem; position: relative;
+        }
+
+        .container { max-width: 1600px; margin: 0 auto; padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem; }
+
+        /* --- Header --- */
+        header { display: flex; flex-direction: column; gap: 0.75rem; }
+        .header-row1 { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+        .header-row2 { display: flex; justify-content: center; }
+        .title-group h1 { font-family: 'Outfit', sans-serif; font-size: 2.2rem; font-weight: 800; margin: 0; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .title-group p { margin: 0.2rem 0 0 0; color: var(--text-muted); font-size: 0.9rem; }
+        .header-actions { display: flex; gap: 1rem; align-items: center; }
+
+        .btn-action {
+            background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: #fff;
+            padding: 0.5rem 1rem; border-radius: 50px; cursor: pointer; font-family: 'Inter'; font-weight: 600;
+            display: flex; align-items: center; gap: 0.5rem; transition: all 0.2s; font-size: 0.85rem;
+        }
+        .btn-action:hover { background: rgba(255,255,255,0.1); transform: translateY(-2px); }
+        .btn-action.primary { background: linear-gradient(45deg, var(--primary), var(--secondary)); border: none; box-shadow: 0 4px 15px var(--primary-glow); }
+        .btn-action.simulation.active { background: var(--warning); color: #000; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.5); }
+
+        /* --- Toggle Roles --- */
+        .role-toggle { display: flex; background: rgba(0,0,0,0.3); border-radius: 50px; padding: 4px; border: 1px solid var(--glass-border); }
+        .role-btn { background: none; border: none; color: var(--text-muted); padding: 0.4rem 1rem; border-radius: 50px; cursor: pointer; font-weight: 600; transition: 0.3s; font-size: 0.85rem; }
+        .role-btn.active { background: var(--primary); color: white; }
+
+        /* --- Data Health --- */
+        .data-health { display: flex; flex-direction: column; align-items: flex-end; font-size: 0.75rem; color: var(--text-muted); margin-right: 1rem; }
+        .health-row { display: flex; align-items: center; gap: 0.4rem; }
+        .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }
+
+        /* --- Scorecards --- */
+        .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
+        .kpi-card { display: flex; flex-direction: column; gap: 0.5rem; border-top: 4px solid var(--glass-border); transition: all 0.3s; }
+        .kpi-card.success { border-top-color: var(--success); } .kpi-card.warning { border-top-color: var(--warning); } .kpi-card.danger { border-top-color: var(--danger); }
+        .kpi-header { display: flex; justify-content: space-between; align-items: center; color: var(--text-muted); font-size: 0.85rem; font-weight: 600; text-transform: uppercase; }
+        .kpi-value { font-family: 'Outfit'; font-size: 2.2rem; font-weight: 800; line-height: 1; margin: 0.5rem 0; display: flex; align-items: baseline; gap: 0.5rem; transition: color 0.3s; }
+        .kpi-context { font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem; }
+        .trend-up { color: var(--success); } .trend-down { color: var(--danger); }
+
+        /* --- Middle Section --- */
+        .middle-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; height: 400px; transition: 0.4s; }
+        .map-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: var(--card-radius); z-index: 1; }
+        .leaflet-layer, .leaflet-control-zoom-in, .leaflet-control-zoom-out, .leaflet-control-attribution { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
+        .chart-container { position: relative; flex: 1; width: 100%; min-height: 0; }
+
+        /* --- Bottom Section --- */
+        .bottom-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; transition: 0.4s; }
+        .table-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; }
+        th { padding: 0.8rem; color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--glass-border); text-transform: uppercase; font-size: 0.75rem; }
+        td { padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.05); vertical-align: middle; }
+        .badge { padding: 0.3rem 0.6rem; border-radius: 50px; font-size: 0.7rem; font-weight: 600; }
+        .badge-danger { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge-warning { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.3); }
+
+        /* --- XAI Tooltip --- */
+        .xai-tooltip { position: relative; display: inline-block; cursor: help; border-bottom: 1px dotted var(--primary); }
+        .xai-tooltip .xai-text {
+            visibility: hidden; width: 220px; background-color: #1e293b; color: #fff; text-align: left; border-radius: 8px;
+            padding: 10px; position: absolute; z-index: 10; bottom: 125%; left: 50%; margin-left: -110px;
+            opacity: 0; transition: opacity 0.3s; border: 1px solid var(--primary); font-size: 0.75rem; line-height: 1.4;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); font-family: 'Inter';
+        }
+        .xai-tooltip .xai-text::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: var(--primary) transparent transparent transparent; }
+        .xai-tooltip:hover .xai-text { visibility: visible; opacity: 1; }
+        .xai-bar { height: 4px; border-radius: 2px; margin-top: 4px; background: #334155; overflow: hidden; }
+        .xai-fill { height: 100%; background: var(--secondary); }
+
+        /* --- Toasts --- */
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+        .toast { background: var(--bg-panel); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); border-left: 4px solid var(--primary); padding: 1rem; border-radius: 8px; color: white; font-size: 0.85rem; display: flex; align-items: center; gap: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); animation: slideIn 0.3s ease-out forwards; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .toast.fade-out { animation: fadeOut 0.5s ease-out forwards; }
+        @keyframes fadeOut { to { opacity: 0; transform: translateY(-10px); } }
+
+        /* View State Logic */
+        .hide-strat { display: none !important; }
+        .hide-ope { display: none !important; }
+        /* --- Period Bar --- */
+        .period-bar {
+            display: flex; align-items: center; gap: 6px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 30px; padding: 5px 10px;
+            position: relative;
+        }
+        .period-bar .p-label {
+            font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;
+            letter-spacing: 1.5px; font-weight: 700; white-space: nowrap; margin-right: 2px;
+        }
+        .period-btn {
+            background: transparent; border: none; color: var(--text-muted);
+            padding: 5px 12px; border-radius: 20px; cursor: pointer;
+            font-size: 0.75rem; font-weight: 600; font-family: inherit;
+            transition: all 0.2s; white-space: nowrap;
+        }
+        .period-btn:hover { color: var(--primary); background: rgba(99,102,241,0.1); }
+        .period-btn.active {
+            background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(139,92,246,0.25));
+            color: #a78bfa; border: 1px solid rgba(139,92,246,0.35);
+        }
+        .period-btn.custom-btn { color: var(--primary); }
+        .period-btn.custom-btn.active { background: rgba(0,210,255,0.15); color: var(--primary); border-color: rgba(0,210,255,0.3); }
+        .period-divider { width: 1px; height: 18px; background: rgba(255,255,255,0.1); margin: 0 2px; }
+        /* Custom dropdown panel */
+        .custom-panel {
+            display: none; position: absolute; top: calc(100% + 10px); left: 50%;
+            transform: translateX(-50%); z-index: 9999;
+            background: #0d1117; border: 1px solid rgba(99,102,241,0.3);
+            border-radius: 16px; padding: 16px 18px; min-width: 300px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6); backdrop-filter: blur(20px);
+            animation: dropIn 0.2s ease-out;
+        }
+        .custom-panel.open { display: block; }
+        @keyframes dropIn { from { opacity:0; transform: translateX(-50%) translateY(-8px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
+        .panel-row { margin-bottom: 12px; }
+        .panel-row:last-child { margin-bottom: 0; }
+        .panel-label {
+            font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1.5px;
+            color: var(--text-muted); font-weight: 700; margin-bottom: 8px;
+        }
+        .panel-btns { display: flex; gap: 6px; }
+        .panel-type-btn {
+            flex: 1; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+            color: var(--text-muted); border-radius: 8px; padding: 7px 4px;
+            cursor: pointer; font-size: 0.75rem; font-weight: 600; font-family: inherit;
+            transition: all 0.2s; text-align: center;
+        }
+        .panel-type-btn:hover { background: rgba(99,102,241,0.1); color: #a78bfa; }
+        .panel-type-btn.active { background: rgba(99,102,241,0.2); color: #a78bfa; border-color: rgba(99,102,241,0.4); }
+        .panel-input {
+            width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+            color: #f8fafc; border-radius: 10px; padding: 8px 14px;
+            font-family: inherit; font-size: 0.85rem; outline: none; cursor: pointer;
+            color-scheme: dark;
+        }
+        .panel-input:focus { border-color: rgba(99,102,241,0.5); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+    </style>
+</head>
+<body data-view="all">
+    <div id="toast-container"></div>
+
+    <div class="container">
+        <!-- HEADER -->
+        <header>
+            <div class="header-row1">
+                <div class="title-group">
+                    <h1>Decision Center</h1>
+                    <p>Logistics 4.0 — <span style="color: var(--primary)">Jumeau Numérique &amp; XAI</span></p>
+                </div>
+
+                <div class="role-toggle">
+                    <button class="role-btn active" onclick="setView('all', this)">Vue 360°</button>
+                    <button class="role-btn" onclick="setView('strat', this)">Stratégique (Comex)</button>
+                    <button class="role-btn" onclick="setView('ope', this)">Opérationnel (Supply)</button>
+                </div>
+
+                <div class="header-actions">
+                    <div class="data-health">
+                        <div class="health-row"><div class="pulse-dot"></div> <span style="font-weight:600; color:var(--text-main)">Kafka Stream Live</span></div>
+                        <div class="health-row">Période: <span id="data-lag" style="color:var(--primary)">Tout</span></div>
+                    </div>
+                    <button class="btn-action" onclick="toggleContrast()" id="btn-contrast"><i data-lucide="moon"></i> Contraste</button>
+                    <button class="btn-action simulation" id="btn-whatif" onclick="toggleSimulation()"><i data-lucide="flask-conical"></i> What-If</button>
+                    <a href="https://app.powerbi.com/reportEmbed?reportId=cb136190-df6f-4ff0-ae4c-2a2676a26eec&autoAuth=true&ctid=f93d5f40-88c0-4650-b8f2-cc4ec3ef6a10" target="_blank" class="btn-action primary" id="btn-powerbi" style="text-decoration:none;"><i data-lucide="bar-chart-2"></i> PowerBI</a>
+                    <button class="btn-action" onclick="window.location.href='/logout'" style="background:var(--danger); border:none;"><i data-lucide="log-out"></i> Déco</button>
+                </div>
+            </div>
+
+            <!-- ROW 2: PERIOD BAR -->
+            <div class="header-row2">
+                <div class="period-bar" id="period-bar">
+                    <span class="p-label">Période</span>
+                    <button class="period-btn" onclick="quickPeriod('today', this)">Aujourd'hui</button>
+                    <button class="period-btn" onclick="quickPeriod('week', this)">Cette semaine</button>
+                    <button class="period-btn" onclick="quickPeriod('month', this)">Ce mois</button>
+                    <button class="period-btn" onclick="quickPeriod('year', this)">Cette année</button>
+                    <button class="period-btn active" onclick="quickPeriod('all', this)">Tout</button>
+                    <div class="period-divider"></div>
+                    <button class="period-btn custom-btn" id="btn-custom-period" onclick="toggleCustomPanel()">⚙ Personnalisé ▾</button>
+
+                    <div class="custom-panel" id="custom-panel">
+                        <div class="panel-row">
+                            <div class="panel-label">Longueur de la période</div>
+                            <div class="panel-btns">
+                                <button class="panel-type-btn active" id="ctype-jour" onclick="setCustomType('jour', this)">Jour</button>
+                                <button class="panel-type-btn" id="ctype-semaine" onclick="setCustomType('semaine', this)">Semaine</button>
+                                <button class="panel-type-btn" id="ctype-mois" onclick="setCustomType('mois', this)">Mois</button>
+                                <button class="panel-type-btn" id="ctype-annee" onclick="setCustomType('annee', this)">Année</button>
+                            </div>
+                        </div>
+                        <div class="panel-row">
+                            <div class="panel-label">Date de la période</div>
+                            <input type="date"  id="cinput-jour"    class="panel-input" onchange="applyCustom()">
+                            <input type="week"  id="cinput-semaine" class="panel-input" style="display:none" onchange="applyCustom()">
+                            <input type="month" id="cinput-mois"    class="panel-input" style="display:none" onchange="applyCustom()">
+                            <select            id="cinput-annee"   class="panel-input" style="display:none" onchange="applyCustom()">
+                                <option value="2023">2023</option>
+                                <option value="2024">2024</option>
+                                <option value="2025">2025</option>
+                                <option value="2026" selected>2026</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- TOP: SCORECARDS -->
+        <div class="kpi-grid">
+            <div class="glass kpi-card" id="card-otif">
+                <div class="kpi-header"><span>Indice OTIF</span><i data-lucide="target" style="color: var(--text-muted);"></i></div>
+                <div class="kpi-value"><span id="kpi-otif">--</span><span style="font-size: 1rem; color: var(--text-muted);">%</span></div>
+                <div class="kpi-context"><i data-lucide="trending-up" class="trend-up" id="otif-icon"></i><span id="otif-context" class="trend-up">-- vs obj. 95%</span></div>
+            </div>
+            <div class="glass kpi-card" id="card-risk">
+                <div class="kpi-header"><span>Risque de Retard</span><i data-lucide="alert-triangle" style="color: var(--text-muted);"></i></div>
+                <div class="kpi-value"><span id="kpi-risk">--</span><span style="font-size: 1rem; color: var(--text-muted);">%</span></div>
+                <div class="kpi-context"><i data-lucide="trending-down" class="trend-down" id="risk-icon"></i><span id="risk-context">Seuil critique: 15%</span></div>
+            </div>
+            <div class="glass kpi-card" id="card-rev">
+                <div class="kpi-header"><span>CA Global (Gold)</span><i data-lucide="dollar-sign" style="color: var(--text-muted);"></i></div>
+                <div class="kpi-value"><span id="kpi-rev">--</span><span style="font-size: 1rem; color: var(--text-muted);">k$</span></div>
+                <div class="kpi-context"><i data-lucide="trending-up" class="trend-up"></i><span class="trend-up">+4.2% vs M-1</span></div>
+            </div>
+            <div class="glass kpi-card" id="card-co2">
+                <div class="kpi-header"><span>Émissions CO₂ Est.</span><i data-lucide="leaf" style="color: var(--text-muted);"></i></div>
+                <div class="kpi-value"><span id="kpi-co2">--</span><span style="font-size: 1rem; color: var(--text-muted);">tCO₂</span></div>
+                <div class="kpi-context"><i data-lucide="alert-circle" style="color: var(--warning);"></i><span style="color: var(--warning);">Objectif dépassé</span></div>
+            </div>
+        </div>
+
+        <!-- MIDDLE: DIGITAL TWIN MAP & TIME SERIES -->
+        <div class="middle-grid">
+            <div class="glass" style="padding: 0; position: relative; overflow: hidden;">
+                <div style="position: absolute; top: 1.5rem; left: 1.5rem; z-index: 1000; pointer-events: none; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">
+                    <h3 style="margin: 0; font-family: 'Outfit';">Digital Twin : Flux Logistiques</h3>
+                    <p style="margin: 0; font-size: 0.85rem; color: #cbd5e1;">Lignes d'approvisionnement animées (Leaflet AntPath)</p>
+                </div>
+                <div id="map" class="map-container"></div>
+            </div>
+            <div class="glass" style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
+                <h3 style="margin-top: 0; font-family: 'Outfit';">Évolution du Risque & Modèle</h3>
+                <div class="chart-container"><canvas id="riskChart"></canvas></div>
+            </div>
+        </div>
+
+        <!-- BOTTOM: ACTIONABLE TABLE & COST-TO-SERVE -->
+        <div class="bottom-grid">
+            <div class="glass table-wrapper">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <div>
+                        <h3 style="margin: 0; font-family: 'Outfit';">Urgences & Explainable AI (XAI)</h3>
+                        <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted);">Survolez la cause pour l'explication de l'IA. Action requise.</p>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Commande</th>
+                            <th>Retard Est.</th>
+                            <th>Cost-to-Serve (Risque)</th>
+                            <th>SLA Restant</th>
+                            <th>Cause Racine (XAI)</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="emergency-table"></tbody>
+                </table>
+            </div>
+            <div class="glass" style="height: 400px; display: flex; flex-direction: column; overflow: hidden;">
+                <h3 style="margin-top: 0; font-family: 'Outfit';">Performance Transporteurs</h3>
+                <div class="chart-container"><canvas id="carrierChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Web Worker Logic for What-If Simulation -->
+    <script id="worker-script" type="javascript/worker">
+        self.onmessage = function(e) {
+            const data = e.data.dataset;
+            let onTimeCount = 0; let riskCount = 0; let revenue = 0; let co2Total = 0;
+            
+            // Simulation Rules: Convert all Standard to First Class.
+            // First Class = Delay reduced by 3 days (Risk decreases), but CO2 triples.
+            data.forEach(r => {
+                revenue += parseFloat(r['order_item_total'] || 0);
+                let delay = (r['days_for_shipping_real'] || 0) - (r['days_for_shipment_scheduled'] || 0);
+                let mode = 'First Class'; // Simulated Air Express
+                
+                delay -= 3; // Massive speed boost
+                let risk = delay > 0 ? 1 : 0;
+                
+                if (risk === 0) onTimeCount++; else riskCount++;
+                co2Total += 0.15; // Air express emission per order (high)
+            });
+
+            self.postMessage({
+                otifRate: (onTimeCount / data.length) * 100,
+                riskRate: (riskCount / data.length) * 100,
+                revenue: revenue,
+                co2Total: co2Total
+            });
+        };
+    </script>
+
+    <script>
+        lucide.createIcons();
+
+        // View logic
+        function setView(view, btn) {
+            document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            const middleGrid = document.querySelector('.middle-grid');
+            const bottomGrid = document.querySelector('.bottom-grid');
+            
+            if (view === 'all') {
+                middleGrid.classList.remove('hide-ope');
+                bottomGrid.classList.remove('hide-strat');
+            } else if (view === 'strat') {
+                middleGrid.classList.remove('hide-ope');
+                bottomGrid.classList.add('hide-strat');
+            } else if (view === 'ope') {
+                middleGrid.classList.add('hide-ope');
+                bottomGrid.classList.remove('hide-strat');
+            }
+        }
+
+        // --- Toasts (Slack/Teams Simulation) ---
+        function showToast(title, message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `<i data-lucide="webhook" style="color: var(--primary);"></i> <div><strong>${title}</strong><br><span style="color:#cbd5e1">${message}</span></div>`;
+            container.appendChild(toast);
+            lucide.createIcons();
+            setTimeout(() => { toast.classList.add('fade-out'); setTimeout(() => toast.remove(), 500); }, 4000);
+        }
+
+        window.resolveEmergency = function(orderId, email, cause) {
+            // Simulate API webhook to Slack/Teams
+            showToast("Microsoft Teams API", `Notification urgente envoyée à la logistique pour l'ordre #${orderId}.`);
+            // Trigger mailto
+            const body = `Bonjour,\n\nAlerte critique sur la commande #${orderId}.\nCause identifiée par l'IA : ${cause}.\nMerci d'intervenir immédiatement.`;
+            window.location.href = `mailto:transport@logistics.internal?subject=URGENCE Commande #${orderId}&body=${encodeURIComponent(body)}`;
+        }
+
+        // --- Globals ---
+        let map; let riskChartInst; let carrierChartInst; let antPolylineGroup;
+        let globalData = [];
+        let simulationMode = false;
+        let simWorker = null;
+        let currentPeriod = 'all';
+        let currentDateFrom = '';
+        let currentDateTo = '';
+        let customType = 'jour';
+
+        // --- Quick Presets ---
+        window.quickPeriod = function(period, btn) {
+            currentPeriod = period; currentDateFrom = ''; currentDateTo = '';
+            document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('custom-panel').classList.remove('open');
+            const labels = { today: "Aujourd'hui", week: 'Cette semaine', month: 'Ce mois', year: 'Cette année', all: 'Tout' };
+            document.getElementById('data-lag').innerText = labels[period] || period;
+            refreshAll();
+        };
+
+        // --- Custom Panel Toggle ---
+        window.toggleCustomPanel = function() {
+            const panel = document.getElementById('custom-panel');
+            panel.classList.toggle('open');
+            document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-custom-period').classList.toggle('active', panel.classList.contains('open'));
+        };
+        // Close panel on click outside
+        document.addEventListener('click', e => {
+            if (!document.getElementById('period-bar').contains(e.target)) {
+                document.getElementById('custom-panel').classList.remove('open');
+                document.getElementById('btn-custom-period').classList.remove('active');
+            }
+        });
+
+        // --- Custom Type Selector ---
+        window.setCustomType = function(type, btn) {
+            customType = type;
+            document.querySelectorAll('.panel-type-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            ['jour','semaine','mois','annee'].forEach(t => {
+                document.getElementById('cinput-' + t).style.display = t === type ? 'block' : 'none';
+            });
+        };
+
+        // --- Apply Custom Date ---
+        window.applyCustom = function() {
+            currentPeriod = 'custom'; currentDateFrom = ''; currentDateTo = '';
+            if (customType === 'jour') {
+                const v = document.getElementById('cinput-jour').value;
+                if (!v) return;
+                currentDateFrom = v; currentDateTo = v;
+                document.getElementById('data-lag').innerText = v;
+            } else if (customType === 'semaine') {
+                const v = document.getElementById('cinput-semaine').value;
+                if (!v) return;
+                const [year, week] = v.split('-W').map(Number);
+                const jan4 = new Date(year, 0, 4);
+                const start = new Date(jan4);
+                start.setDate(jan4.getDate() - jan4.getDay() + 1 + (week-1)*7);
+                const end = new Date(start); end.setDate(start.getDate()+6);
+                currentDateFrom = start.toISOString().slice(0,10);
+                currentDateTo   = end.toISOString().slice(0,10);
+                document.getElementById('data-lag').innerText = `Sem. ${week} ${year}`;
+            } else if (customType === 'mois') {
+                const v = document.getElementById('cinput-mois').value;
+                if (!v) return;
+                const [y, m] = v.split('-').map(Number);
+                currentDateFrom = `${y}-${String(m).padStart(2,'0')}-01`;
+                currentDateTo   = `${y}-${String(m).padStart(2,'0')}-${new Date(y,m,0).getDate()}`;
+                document.getElementById('data-lag').innerText = `${y}/${String(m).padStart(2,'0')}`;
+            } else if (customType === 'annee') {
+                const y = document.getElementById('cinput-annee').value;
+                currentDateFrom = `${y}-01-01`; currentDateTo = `${y}-12-31`;
+                document.getElementById('data-lag').innerText = `Année ${y}`;
+            }
+            document.getElementById('custom-panel').classList.remove('open');
+            document.getElementById('btn-custom-period').classList.add('active');
+            document.querySelectorAll('.period-btn:not(#btn-custom-period)').forEach(b => b.classList.remove('active'));
+            refreshAll();
+        };
+
+        // Deprecated compat
+        window.setPeriod = function(p, btn) { quickPeriod(p, btn || document.querySelector('.period-btn')); };
+        window.switchPickerMode = function() {}; window.applyExactDate = function() {};
+
+        function buildQueryParams() {
+            const p = new URLSearchParams();
+            if (currentDateFrom && currentDateTo) {
+                p.set('date_from', currentDateFrom);
+                p.set('date_to', currentDateTo);
+            } else {
+                p.set('period', currentPeriod);
+            }
+            return p.toString();
+        }
+
+        async function refreshAll() {
+            await Promise.all([fetchStats(), fetchOrders()]);
+        }
+
+        // Init Web Worker
+        const blob = new Blob([document.getElementById('worker-script').textContent], {type: "text/javascript"});
+        simWorker = new Worker(window.URL.createObjectURL(blob));
+        simWorker.onmessage = function(e) {
+            updateKpiDOM(e.data.otifRate, e.data.riskRate, e.data.revenue, e.data.co2Total, true);
+        };
+
+        // --- Map & Digital Twin ---
+        const HUB_COORD = [48.8566, 2.3522]; // Paris Hub
+        const REGION_COORDS = { 
+            'Central America': [12.7, -85.6], 'South America': [-14.2, -51.9], 
+            'Eastern Asia': [35.8, 104.1], 'Oceania': [-25.2, 133.7], 
+            'North America': [37.0, -95.7], 'Southern Europe': [41.8, 12.5], 
+            'Northern Europe': [60.1, 18.6], 'Western Europe': [46.2, 2.2],
+            'Caribbean': [15.3, -73.3], 'West Asia': [25.2, 55.2],
+            'Southeast Asia': [4.2, 101.9], 'Eastern Europe': [48.3, 31.1]
+        };
+
+        function initMap() {
+            map = L.map('map').setView([30, 0], 2);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 10 }).addTo(map);
+            L.circleMarker(HUB_COORD, { radius: 8, fillColor: "#3b82f6", color: "#fff", weight: 2, fillOpacity: 1 }).addTo(map).bindPopup("Hub Logistique Central");
+            antPolylineGroup = L.layerGroup().addTo(map);
+        }
+
+        function updateMap(data) {
+            // Clean AntPaths safely
+            antPolylineGroup.clearLayers();
+            const regionCounts = {};
+            data.forEach(r => { const reg = r['order_region']; if (reg && REGION_COORDS[reg]) regionCounts[reg] = (regionCounts[reg] || 0) + 1; });
+
+            Object.entries(regionCounts).forEach(([region, count]) => {
+                if(count < 5) return; // Only show major flows
+                const dest = REGION_COORDS[region];
+                // Animated AntPath for flow visualization
+                const path = L.polyline.antPath([HUB_COORD, dest], {
+                    delay: 400, dashArray: [10, 20], weight: Math.min(count/10, 6), color: "#f59e0b", pulseColor: "#fff", opacity: 0.6
+                });
+                path.addTo(antPolylineGroup);
+            });
+        }
+
+        // --- Charts ---
+        function initCharts() {
+            Chart.defaults.color = '#94a3b8'; Chart.defaults.font.family = 'Inter';
+            riskChartInst = new Chart(document.getElementById('riskChart').getContext('2d'), {
+                type: 'line', data: { labels: [], datasets: [{ label: '% Risque', data: [], borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { max: 100 } } }
+            });
+            carrierChartInst = new Chart(document.getElementById('carrierChart').getContext('2d'), {
+                type: 'bar', data: { labels: [], datasets: [{ label: 'Retards', data: [], backgroundColor: '#8b5cf6', borderRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+        function updateCharts(data) {
+            const sorted = [...data].sort((a,b) => new Date(a['order_date']) - new Date(b['order_date'])).slice(-100);
+            const rLabels = []; const rData = [];
+            for (let i=0; i<sorted.length; i+=10) {
+                const chunk = sorted.slice(i, i+10);
+                rLabels.push(`T-${sorted.length - i}`);
+                rData.push((chunk.filter(c => String(c['is_delayed_actual']) === '1').length / chunk.length) * 100);
+            }
+            riskChartInst.data.labels = rLabels; riskChartInst.data.datasets[0].data = rData; riskChartInst.update();
+
+            const carriers = {};
+            data.forEach(r => {
+                const m = r['shipping_mode'] || 'UNK';
+                if (!carriers[m]) carriers[m] = { tot: 0, late: 0 };
+                carriers[m].tot++; if (String(r['is_delayed_actual']) === '1') carriers[m].late++;
+            });
+            carrierChartInst.data.labels = Object.keys(carriers);
+            carrierChartInst.data.datasets[0].data = Object.keys(carriers).map(c => (carriers[c].late / carriers[c].tot) * 100);
+            carrierChartInst.update();
+        }
+
+        // --- Explainable AI (XAI) & Cost-to-Serve ---
+        function analyzeRootCause(row) {
+            const delay = (row['days_for_shipping_real'] || 0) - (row['days_for_shipment_scheduled'] || 0);
+            const mode = row['shipping_mode'];
+            const reg = row['order_region'] || '';
+            
+            // Generate XAI tooltips
+            if (delay > 3 && mode === 'First Class') return { cause: "Blocage Douane", exp: "Facteur majeur : Mode (40%), Pays (35%). Modèle LSTM a détecté une anomalie documentaire." };
+            if (delay > 5) return { cause: "Rupture de Stock", exp: "Facteur majeur : Inventaire (60%). Historique de réapprovisionnement défaillant." };
+            if (reg.includes('America')) return { cause: "Congestion Hub", exp: "Facteur majeur : Trafic Portuaire (80%). API externe signale +12h d'attente au port de Los Angeles." };
+            if (mode === 'Standard Class') return { cause: "Pénurie Chauffeurs", exp: "Facteur majeur : Capacité Fret (45%). Analyse prédictive RH indique un manque de 12% des effectifs." };
+            return { cause: "Alerte Météo", exp: "Facteur majeur : API Climat (90%). Tempête signalée sur la route maritime principale." };
+        }
+
+        function updateEmergencyTable(data) {
+            const tbody = document.getElementById('emergency-table'); tbody.innerHTML = '';
+            const late = data.filter(r => String(r['is_delayed_actual']) === '1').sort((a,b) => (b['days_for_shipping_real']-b['days_for_shipment_scheduled']) - (a['days_for_shipping_real']-a['days_for_shipment_scheduled']));
+            const top5 = late.slice(0, 5);
+            
+            top5.forEach(r => {
+                const delay = (r['days_for_shipping_real'] || 0) - (r['days_for_shipment_scheduled'] || 0);
+                const val = parseFloat(r['order_item_total'] || 0);
+                // Margin at risk: 5% of value + 10$ penalty per day
+                const financialRisk = (val * 0.05) + (delay * 10);
+                const xai = analyzeRootCause(r);
+                
+                // SLA Countdown logic (simulated based on delay and some randomness)
+                let hoursLeft = Math.max(0, 48 - (delay * 8)); // Example rule
+                let minutesLeft = Math.floor(Math.random() * 60);
+                let slaBadge = hoursLeft < 12 ? `<span style="color:var(--danger); font-family:'JetBrains Mono', monospace; font-weight:bold"><i data-lucide="clock" style="width:14px; margin-right:4px;"></i>${hoursLeft}h ${minutesLeft}m</span>` 
+                                             : `<span style="color:var(--warning); font-family:'JetBrains Mono', monospace; font-weight:bold"><i data-lucide="clock" style="width:14px; margin-right:4px;"></i>${hoursLeft}h ${minutesLeft}m</span>`;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>#${r['order_id']}</strong><br><span style="font-size:0.7rem; color:var(--text-muted)">${r['order_region']}</span></td>
+                    <td><span class="badge ${delay >= 4 ? 'badge-danger' : 'badge-warning'}">+${delay}j</span></td>
+                    <td style="color:var(--danger); font-weight:600;">-${financialRisk.toFixed(0)} €</td>
+                    <td>${slaBadge}</td>
+                    <td>
+                        <div class="xai-tooltip" style="color: #a78bfa;"><i data-lucide="brain-circuit" style="width:14px; margin-right:4px;"></i>${xai.cause}
+                            <div class="xai-text">
+                                <strong>Logique du Modèle RF :</strong><br>${xai.exp}
+                                <div class="xai-bar"><div class="xai-fill" style="width: 85%"></div></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td><button class="btn-action" style="padding:0.3rem 0.6rem; font-size:0.7rem" onclick="resolveEmergency('${r['order_id']}', 'carrier', '${xai.cause}')"><i data-lucide="zap"></i> Résoudre</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            lucide.createIcons();
+        }
+
+        // --- Data Logic ---
+        function updateKpiDOM(otifRate, riskRate, revenue, co2Total, isSim = false) {
+            document.getElementById('kpi-otif').innerText = otifRate.toFixed(1);
+            document.getElementById('kpi-otif').style.color = isSim ? "var(--warning)" : "inherit";
+            document.getElementById('kpi-risk').innerText = riskRate.toFixed(1);
+            document.getElementById('kpi-risk').style.color = isSim ? "var(--warning)" : "inherit";
+            document.getElementById('kpi-rev').innerText = (revenue / 1000).toFixed(1);
+            document.getElementById('kpi-co2').innerText = co2Total.toFixed(1);
+            document.getElementById('kpi-co2').style.color = isSim ? "var(--warning)" : "inherit";
+
+            document.getElementById('card-risk').className = `glass kpi-card ${riskRate > 15 ? 'danger' : riskRate > 5 ? 'warning' : 'success'}`;
+            document.getElementById('card-otif').className = `glass kpi-card ${otifRate >= 95 ? 'success' : otifRate >= 85 ? 'warning' : 'danger'}`;
+        }
+
+        async function fetchStats() {
+            if (simulationMode) return;
+            try {
+                const res = await fetch(`/db/stats?${buildQueryParams()}`);
+                if (res.status === 401) { window.location.href = '/'; return; }
+                const payload = await res.json();
+                if (payload.error) { console.error(payload.error); return; }
+
+                const k = payload.kpis;
+                const otif   = parseFloat(k.otif_rate) || 0;
+                const risk   = parseFloat(k.delay_rate) || 0;
+                const rev    = parseFloat(k.total_revenue) || 0;
+                const orders = parseInt(k.total_orders) || 0;
+                const co2    = orders * 0.08;
+
+                updateKpiDOM(otif, risk, rev, co2);
+
+                const el = document.getElementById('kpi-orders');
+                if (el) el.innerText = orders.toLocaleString('fr-FR');
+
+                if (payload.top_regions && payload.top_regions.length) {
+                    carrierChartInst.data.labels = payload.top_regions.map(r => r.order_region);
+                    carrierChartInst.data.datasets[0].data = payload.top_regions.map(r => parseFloat(r.delay_pct));
+                    carrierChartInst.update();
+                }
+                if (payload.daily_trend && payload.daily_trend.length) {
+                    const trend = [...payload.daily_trend].reverse();
+                    riskChartInst.data.labels = trend.map(d => d.day ? d.day.slice(5) : '');
+                    riskChartInst.data.datasets[0].data = trend.map(d => d.cnt);
+                    riskChartInst.data.datasets[0].label = 'Commandes / Jour';
+                    riskChartInst.update();
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        async function fetchOrders() {
+            if (simulationMode) return;
+            try {
+                const res = await fetch(`/db/orders?limit=2000&${buildQueryParams()}`);
+                if (res.status === 401) { window.location.href = '/'; return; }
+                const payload = await res.json();
+                const data = payload.rows || [];
+                globalData = data;
+                updateMap(data);
+                updateEmergencyTable(data);
+            } catch (e) { console.error(e); }
+        }
+
+        async function fetchData() {
+            if (simulationMode) return;
+            await refreshAll();
+            setTimeout(fetchData, 30000);
+        }
+
+        window.toggleSimulation = function() {
+            simulationMode = !simulationMode;
+            const btn = document.getElementById('btn-whatif');
+            if (simulationMode) {
+                btn.classList.add('active');
+                btn.innerHTML = '<i data-lucide="flask-conical"></i> Simulation Active (Air)';
+                showToast('Simulation', 'Calcul de l\'impact d\'un passage 100% fret aérien...');
+                simWorker.postMessage({ dataset: globalData });
+            } else {
+                btn.classList.remove('active');
+                btn.innerHTML = '<i data-lucide="flask-conical"></i> What-If: Air Express';
+                showToast('Simulation', 'Retour à la réalité opérationnelle.');
+                // Re-calculate nominal
+                let onTime = 0; let riskCount = 0; let rev = 0; let co2 = 0;
+                globalData.forEach(r => {
+                    if (String(r['is_delayed_actual']) === '0') onTime++; else riskCount++;
+                    rev += parseFloat(r['order_item_total'] || 0);
+                    co2 += (r['shipping_mode'] === 'First Class') ? 0.15 : 0.08;
+                });
+                updateKpiDOM((onTime/globalData.length)*100, (riskCount/globalData.length)*100, rev, co2);
+            }
+            lucide.createIcons();
+        }
+
+        window.toggleContrast = function() {
+            const body = document.body;
+            if (body.getAttribute('data-theme') === 'high-contrast') {
+                body.removeAttribute('data-theme');
+                document.getElementById('btn-contrast').innerHTML = '<i data-lucide="moon"></i> Contraste';
+            } else {
+                body.setAttribute('data-theme', 'high-contrast');
+                document.getElementById('btn-contrast').innerHTML = '<i data-lucide="sun"></i> Normal';
+            }
+            lucide.createIcons();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { initMap(); initCharts(); fetchData(); });
+    </script>
+</body>
+</html>
